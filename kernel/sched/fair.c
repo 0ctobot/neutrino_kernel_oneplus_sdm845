@@ -7020,6 +7020,7 @@ retry:
 			unsigned long capacity_orig = capacity_orig_of(i);
 			unsigned long wake_util, new_util;
 			long spare_cap;
+			int idle_idx = INT_MAX;
 
 			cpumask_clear_cpu(i, &search_cpus);
 
@@ -7058,6 +7059,10 @@ retry:
 			 * enqueued here.
 			 */
 			spare_cap = capacity_orig - new_util;
+
+			if (idle_cpu(i))
+				idle_idx = idle_get_state_idx(cpu_rq(i));
+
 
 			/*
 			 * Case A) Latency sensitive tasks
@@ -7102,13 +7107,18 @@ retry:
 					schedstat_inc(this_rq()->eas_stats.fbt_pref_idle);
 
 					if (boosted &&
-					    capacity_orig <= target_capacity)
+					    capacity_orig < target_capacity)
 						continue;
 					if (!boosted &&
-					    capacity_orig >= target_capacity)
+					    capacity_orig > target_capacity)
+						continue;
+					if (capacity_orig == target_capacity &&
+					    sysctl_sched_cstate_aware &&
+					    best_idle_cstate <= idle_idx)
 						continue;
 
 					target_capacity = capacity_orig;
+					best_idle_cstate = idle_idx;
 					best_idle_cpu = i;
 					continue;
 				}
@@ -7184,8 +7194,6 @@ retry:
 			 * consumptions without affecting performance.
 			 */
 			if (idle_cpu(i)) {
-				int idle_idx = idle_get_state_idx(cpu_rq(i));
-
 				/*
 				 * Skip CPUs in deeper idle state, but only
 				 * if they are also less energy efficient.
