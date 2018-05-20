@@ -696,18 +696,18 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 	}
 
 	dsi = &panel->mipi_device;
-	if (panel->is_hbm_enabled){
+
+	if (panel->is_hbm_enabled)
 		return 0;
-		}
-    if (panel->bl_config.bl_high2bit){
-	if(HBM_flag==true){
-		return 0;
-		}
-	else{
+
+	if (panel->bl_config.bl_high2bit) {
+		if (HBM_flag)
+			return 0;
 		rc = mipi_dsi_dcs_set_display_brightness_samsung(dsi, bl_lvl);
-		}
-    } else
-	rc = mipi_dsi_dcs_set_display_brightness(dsi, bl_lvl);
+	} else {
+		rc = mipi_dsi_dcs_set_display_brightness(dsi, bl_lvl);
+	}
+
 	if (rc < 0)
 		pr_err("failed to update dcs backlight:%d\n", bl_lvl);
 
