@@ -7319,37 +7319,38 @@ int dsi_display_read_serial_number(struct dsi_display *dsi_display,
 	int rc = 0;
 	u32 flags = 0;
 	struct dsi_cmd_desc *cmds;
-    struct dsi_display_mode *mode;
-    struct dsi_display_ctrl *m_ctrl;
-    int retry_times;
+	struct dsi_display_mode *mode;
+	struct dsi_display_ctrl *m_ctrl;
+	int retry_times;
 
-    m_ctrl = &dsi_display->ctrl[dsi_display->cmd_master_idx];
+	m_ctrl = &dsi_display->ctrl[dsi_display->cmd_master_idx];
 
 	if (!panel || !m_ctrl)
 		return -EINVAL;
 
-    rc = dsi_display_cmd_engine_enable(dsi_display);
-    if (rc) {
-        pr_err("cmd engine enable failed\n");
-        return -EINVAL;
-    }
+	rc = dsi_display_cmd_engine_enable(dsi_display);
+	if (rc) {
+		pr_err("cmd engine enable failed\n");
+		return -EINVAL;
+	}
 
 	dsi_panel_acquire_panel_lock(panel);
 
-    mode = panel->cur_mode;
+	mode = panel->cur_mode;
 	cmds = mode->priv_info->cmd_sets[DSI_CMD_SET_PANEL_SERIAL_NUMBER].cmds;;
 	if (cmds->last_command) {
 		cmds->msg.flags |= MIPI_DSI_MSG_LASTCOMMAND;
 		flags |= DSI_CTRL_CMD_LAST_COMMAND;
 	}
 	flags |= (DSI_CTRL_CMD_FETCH_MEMORY | DSI_CTRL_CMD_READ);
-    if (!m_ctrl->ctrl->vaddr)
-        goto error;
+
+	if (!m_ctrl->ctrl->vaddr)
+		goto error;
 
 	cmds->msg.rx_buf = buf;
 	cmds->msg.rx_len = len;
 	retry_times = 0;
-    do {
+	do {
 	    rc = dsi_ctrl_cmd_transfer(m_ctrl->ctrl, &cmds->msg, flags);
 	    retry_times++;
 	} while ((rc <= 0) && (retry_times < 3));
