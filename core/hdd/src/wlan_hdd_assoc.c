@@ -1,9 +1,6 @@
 /*
  * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /**
@@ -118,6 +109,8 @@ uint8_t ccp_rsn_oui_0f[HDD_RSN_OUI_SIZE] = {0x00, 0x0F, 0xAC, 0x0F};
 uint8_t ccp_rsn_oui_10[HDD_RSN_OUI_SIZE] = {0x00, 0x0F, 0xAC, 0x10};
 uint8_t ccp_rsn_oui_11[HDD_RSN_OUI_SIZE] = {0x00, 0x0F, 0xAC, 0x11};
 #endif
+static const
+uint8_t ccp_rsn_oui_12[HDD_RSN_OUI_SIZE] = {0x50, 0x6F, 0x9A, 0x02};
 
 static const
 uint8_t ccp_rsn_oui_0b[HDD_RSN_OUI_SIZE] = {0x00, 0x0F, 0xAC, 0x0B};
@@ -1042,6 +1035,9 @@ hdd_conn_save_connect_info(hdd_adapter_t *pAdapter, tCsrRoamInfo *pRoamInfo,
 
 			pHddStaCtx->conn_info.rate_flags =
 				pRoamInfo->chan_info.rate_flags;
+
+			pHddStaCtx->conn_info.ch_width =
+				pRoamInfo->chan_info.ch_width;
 		}
 		hdd_save_bss_info(pAdapter, pRoamInfo);
 	}
@@ -1364,7 +1360,7 @@ static void hdd_send_association_event(struct net_device *dev,
 	if (eConnectionState_Associated == pHddStaCtx->conn_info.connState) {
 		tSirSmeChanInfo chan_info;
 
-		if (!pCsrRoamInfo) {
+		if (!pCsrRoamInfo || !pCsrRoamInfo->pBssDesc) {
 			hdd_warn("STA in associated state but pCsrRoamInfo is null");
 			return;
 		}
@@ -1658,7 +1654,8 @@ static QDF_STATUS hdd_dis_connect_handler(hdd_adapter_t *pAdapter,
 				     WLAN_STOP_ALL_NETIF_QUEUE_N_CARRIER,
 				     WLAN_CONTROL_PATH);
 
-	if (hdd_ipa_is_enabled(pHddCtx))
+	if (hdd_ipa_is_enabled(pHddCtx) &&
+	    (pHddStaCtx->conn_info.staId[0] != HDD_WLAN_INVALID_STA_ID))
 		hdd_ipa_wlan_evt(pAdapter, pHddStaCtx->conn_info.staId[0],
 				HDD_IPA_STA_DISCONNECT,
 				pHddStaCtx->conn_info.bssId.bytes);
@@ -1798,7 +1795,8 @@ static QDF_STATUS hdd_dis_connect_handler(hdd_adapter_t *pAdapter,
 		}
 	} else {
 		sta_id = pHddStaCtx->conn_info.staId[0];
-		hdd_debug("roamResult: %d", roamResult);
+		hdd_debug("roamResult is: %d %s", roamResult,
+			   get_e_csr_roam_result_str(roamResult));
 
 		/* clear scan cache for Link Lost */
 		if (pRoamInfo && !pRoamInfo->reasonCode &&
@@ -2180,7 +2178,8 @@ static void hdd_send_re_assoc_event(struct net_device *dev,
 		hdd_err("Unable to allocate Assoc Req IE");
 		goto done;
 	}
-	if (pCsrRoamInfo == NULL) {
+
+	if (!pCsrRoamInfo || !pCsrRoamInfo->pBssDesc) {
 		hdd_err("Invalid CSR roam info");
 		goto done;
 	}
@@ -2603,9 +2602,12 @@ static QDF_STATUS hdd_association_completion_handler(hdd_adapter_t *pAdapter,
 	    pHddStaCtx->conn_info.connState)) &&
 	    ((eCSR_ROAM_RESULT_ASSOCIATED == roamResult) ||
 	    (eCSR_ROAM_ASSOCIATION_FAILURE == roamStatus))) {
-		hdd_info("hddDisconInProgress state=%d, result=%d, status=%d",
+		hdd_info("hddDisconInProgress state=%d, result=%d %s, status=%d %s",
 				pHddStaCtx->conn_info.connState,
-				roamResult, roamStatus);
+				roamResult,
+				get_e_csr_roam_result_str(roamResult),
+				roamStatus,
+				get_e_roam_cmd_status_str(roamStatus));
 		hddDisconInProgress = true;
 	}
 
@@ -2966,10 +2968,13 @@ static QDF_STATUS hdd_association_completion_handler(hdd_adapter_t *pAdapter,
 					else {
 						hdd_debug("sending connect indication to nl80211:for bssid "
 							 MAC_ADDRESS_STR
-							 " result:%d and Status:%d",
+							 " result:%d %s and Status:%d %s",
 							 MAC_ADDR_ARRAY
 							 (pRoamInfo->bssid.bytes),
-							 roamResult, roamStatus);
+							 roamResult,
+							 get_e_csr_roam_result_str(roamResult),
+							 roamStatus,
+							 get_e_roam_cmd_status_str(roamStatus));
 
 						/* inform connect result to nl80211 */
 						hdd_connect_result(dev,
@@ -3103,14 +3108,20 @@ static QDF_STATUS hdd_association_completion_handler(hdd_adapter_t *pAdapter,
 
 		if (pRoamInfo)
 			hdd_err("wlan: connection failed with " MAC_ADDRESS_STR
-				 " result: %d and Status: %d",
+				 " result: %d %s and Status: %d %s",
 				 MAC_ADDR_ARRAY(pRoamInfo->bssid.bytes),
-				 roamResult, roamStatus);
+				 roamResult,
+				 get_e_csr_roam_result_str(roamResult),
+				 roamStatus,
+				 get_e_roam_cmd_status_str(roamStatus));
 		else
 			hdd_err("wlan: connection failed with " MAC_ADDRESS_STR
-				 " result: %d and Status: %d",
+				 " result: %d %s and Status: %d %s",
 				 MAC_ADDR_ARRAY(pWextState->req_bssId.bytes),
-				 roamResult, roamStatus);
+				 roamResult,
+				 get_e_csr_roam_result_str(roamResult),
+				 roamStatus,
+				 get_e_roam_cmd_status_str(roamStatus));
 
 		if ((eCSR_ROAM_RESULT_SCAN_FOR_SSID_FAILURE == roamResult) ||
 		   (pRoamInfo &&
@@ -3140,18 +3151,24 @@ static QDF_STATUS hdd_association_completion_handler(hdd_adapter_t *pAdapter,
 			if (pRoamInfo) {
 				hdd_err("send connect failure to nl80211: for bssid "
 					MAC_ADDRESS_STR
-					" result: %d and Status: %d reasoncode: %d",
+					" result: %d %s and Status: %d %s reasoncode: %d",
 					MAC_ADDR_ARRAY(pRoamInfo->bssid.bytes),
-					roamResult, roamStatus,
+					roamResult,
+					get_e_csr_roam_result_str(roamResult),
+					roamStatus,
+					get_e_roam_cmd_status_str(roamStatus),
 					pRoamInfo->reasonCode);
 				pHddStaCtx->conn_info.assoc_status_code =
 					pRoamInfo->statusCode;
 			} else {
 				hdd_err("connect failed: for bssid "
 				       MAC_ADDRESS_STR
-				       " result: %d and status: %d ",
+				       " result: %d %s and status: %d %s",
 				       MAC_ADDR_ARRAY(pWextState->req_bssId.bytes),
-				       roamResult, roamStatus);
+				       roamResult,
+				       get_e_csr_roam_result_str(roamResult),
+				       roamStatus,
+				       get_e_roam_cmd_status_str(roamStatus));
 			}
 			hdd_debug("Invoking packetdump deregistration API");
 			wlan_deregister_txrx_packetdump();
@@ -5007,8 +5024,12 @@ hdd_sme_roam_callback(void *pContext, tCsrRoamInfo *pRoamInfo, uint32_t roamId,
 	hdd_context_t *pHddCtx;
 
 	if (eCSR_ROAM_UPDATE_SCAN_RESULT != roamStatus)
-		hdd_debug("CSR Callback: status= %d result= %d roamID=%d",
-			  roamStatus, roamResult, roamId);
+		hdd_debug("CSR Callback: status= %d %s result= %d %s roamID=%d",
+			  roamStatus,
+			  get_e_roam_cmd_status_str(roamStatus),
+			  roamResult,
+			  get_e_csr_roam_result_str(roamResult),
+			  roamId);
 	/* Sanity check */
 	if ((NULL == pAdapter) || (WLAN_HDD_ADAPTER_MAGIC != pAdapter->magic)) {
 		hdd_err("Invalid adapter or adapter has invalid magic");
@@ -5476,6 +5497,8 @@ eCsrAuthType hdd_translate_rsn_to_csr_auth_type(uint8_t auth_suite[4])
 	} else if (memcmp(auth_suite, ccp_rsn_oui_0c, 4) == 0) {
 		/* Check for Suite B EAP 384 */
 		auth_type = eCSR_AUTH_TYPE_SUITEB_EAP_SHA384;
+	} else if (memcmp(auth_suite, ccp_rsn_oui_12, 4) == 0) {
+		auth_type = eCSR_AUTH_TYPE_DPP_RSN;
 	} else {
 		hdd_translate_fils_rsn_to_csr_auth(auth_suite, &auth_type);
 		hdd_translate_owe_rsn_to_csr_auth(auth_suite, &auth_type);
@@ -5992,8 +6015,10 @@ int hdd_set_csr_auth_type(hdd_adapter_t *pAdapter, eCsrAuthType RSNAuthType)
 					eCSR_AUTH_TYPE_CCKM_RSN;
 			} else
 #endif
-
-			if ((RSNAuthType == eCSR_AUTH_TYPE_FT_RSN) &&
+			if (RSNAuthType == eCSR_AUTH_TYPE_DPP_RSN) {
+				pRoamProfile->AuthType.authType[0] =
+							eCSR_AUTH_TYPE_DPP_RSN;
+			} else if ((RSNAuthType == eCSR_AUTH_TYPE_FT_RSN) &&
 			    ((pWextState->
 			      authKeyMgmt & IW_AUTH_KEY_MGMT_802_1X)
 			     == IW_AUTH_KEY_MGMT_802_1X)) {

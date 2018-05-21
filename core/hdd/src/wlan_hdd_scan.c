@@ -1,9 +1,6 @@
 /*
  * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /**
@@ -626,6 +617,14 @@ static void hdd_update_dbs_scan_ctrl_ext_flag(hdd_context_t *hdd_ctx,
 	/* Resetting the scan_ctrl_flags_ext to 0 */
 	scan_req->scan_ctrl_flags_ext = 0;
 
+	if ((hdd_ctx->config->dual_mac_feature_disable ==
+	     DISABLE_DBS_CXN_AND_SCAN) ||
+	    (hdd_ctx->config->dual_mac_feature_disable ==
+	     ENABLE_DBS_CXN_AND_DISABLE_DBS_SCAN)) {
+		hdd_debug("DBS is disabled");
+		goto end;
+	}
+
 	if (scan_req->scan_flags & SME_SCAN_FLAG_HIGH_ACCURACY) {
 		hdd_debug("DBS disabled due to high accuracy scan request");
 		goto end;
@@ -641,14 +640,6 @@ static void hdd_update_dbs_scan_ctrl_ext_flag(hdd_context_t *hdd_ctx,
 		scan_dbs_policy = SME_SCAN_DBS_POLICY_IGNORE_DUTY;
 		hdd_info_ratelimited(HDD_DBS_SCAN_DISABLE_RATE_LIMIT,
 				     "DBS scan duty cycle is disabled");
-		goto end;
-	}
-
-	if ((hdd_ctx->config->dual_mac_feature_disable ==
-	     DISABLE_DBS_CXN_AND_SCAN) ||
-	    (hdd_ctx->config->dual_mac_feature_disable ==
-	     ENABLE_DBS_CXN_AND_DISABLE_DBS_SCAN)) {
-		hdd_debug("DBS is disabled");
 		goto end;
 	}
 
@@ -753,9 +744,9 @@ static bool wlan_hdd_is_scan_pending(hdd_adapter_t *adapter)
  *
  * Return: void
  */
-static void hdd_scan_inactivity_timer_handler(void *scan_req)
+static void hdd_scan_inactivity_timer_handler(unsigned long scan_req)
 {
-	struct hdd_scan_req *hdd_scan_req = scan_req;
+	struct hdd_scan_req *hdd_scan_req = (struct hdd_scan_req *)scan_req;
 
 	hdd_debug("scan_id %d, enqueue timestamp %u, flags 0x%X",
 		hdd_scan_req->scan_id, hdd_scan_req->timestamp,

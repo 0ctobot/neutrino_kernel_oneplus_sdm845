@@ -1,9 +1,6 @@
 /*
  * Copyright (c) 2013-2018 The Linux Foundation. All rights reserved.
  *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /**
@@ -48,6 +39,52 @@
 #ifdef WLAN_POWER_DEBUGFS
 #define POWER_DEBUGFS_BUFFER_MAX_LEN 4096
 #endif
+
+#define MAX_DEBUGFS_WAIT_ITERATIONS 20
+#define DEBUGFS_WAIT_SLEEP_TIME 100
+
+static qdf_atomic_t debugfs_thread_count;
+
+void hdd_debugfs_thread_increment(void)
+{
+	qdf_atomic_inc(&debugfs_thread_count);
+}
+
+void hdd_debugfs_thread_decrement(void)
+{
+	qdf_atomic_dec(&debugfs_thread_count);
+}
+
+int hdd_return_debugfs_threads_count(void)
+{
+	return qdf_atomic_read(&debugfs_thread_count);
+}
+
+bool hdd_wait_for_debugfs_threads_completion(void)
+{
+	int count = MAX_DEBUGFS_WAIT_ITERATIONS;
+	int r;
+
+	while (count) {
+
+		r = hdd_return_debugfs_threads_count();
+		if (!r)
+			break;
+
+		if (--count) {
+			hdd_debug("Waiting for %d debugfs threads to exit", r);
+			msleep(DEBUGFS_WAIT_SLEEP_TIME);
+		}
+	}
+
+	/* at least one debugfs thread is executing */
+	if (!count) {
+		hdd_err("Timed-out waiting for debugfs threads");
+		return false;
+	}
+
+	return true;
+}
 
 /**
  * __wcnss_wowenable_write() - wow_enable debugfs handler

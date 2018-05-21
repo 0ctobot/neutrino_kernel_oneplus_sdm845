@@ -1,9 +1,6 @@
 /*
  * Copyright (c) 2011-2018 The Linux Foundation. All rights reserved.
  *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /*
@@ -1559,12 +1550,11 @@ lim_detect_change_in_ap_capabilities(tpAniSirGlobal pMac,
 			pe_warn("AP capabilities are not matching, sending directed probe request");
 			status =
 				lim_send_probe_req_mgmt_frame(pMac, &psessionEntry->ssId,
-							      psessionEntry->bssId,
-							      psessionEntry->
-							      currentOperChannel,
-							      psessionEntry->selfMacAddr,
-							      psessionEntry->dot11mode,
-							      0, NULL);
+					      psessionEntry->bssId,
+					      psessionEntry->currentOperChannel,
+					      psessionEntry->selfMacAddr,
+					      psessionEntry->dot11mode,
+					      NULL, NULL);
 
 			if (eSIR_SUCCESS != status) {
 				pe_err("send ProbeReq failed");
@@ -2011,6 +2001,21 @@ static inline void lim_copy_and_free_hlp_data_from_session(
 {}
 #endif
 
+static const char *pe_roam_op_code_to_string(uint8_t roam_op_code)
+{
+	switch (roam_op_code) {
+	CASE_RETURN_STRING(SIR_ROAM_SYNCH_PROPAGATION);
+	CASE_RETURN_STRING(SIR_ROAMING_DEREGISTER_STA);
+	CASE_RETURN_STRING(SIR_ROAMING_START);
+	CASE_RETURN_STRING(SIR_ROAMING_ABORT);
+	CASE_RETURN_STRING(SIR_ROAM_SYNCH_COMPLETE);
+	CASE_RETURN_STRING(SIR_ROAM_SYNCH_NAPI_OFF);
+	CASE_RETURN_STRING(SIR_ROAMING_INVOKE_FAIL);
+	default:
+		return "none";
+	}
+}
+
 /**
  * pe_roam_synch_callback() - PE level callback for roam synch propagation
  * @mac_ctx: MAC Context
@@ -2053,7 +2058,8 @@ QDF_STATUS pe_roam_synch_callback(tpAniSirGlobal mac_ctx,
 		return status;
 	}
 
-	pe_debug("LFR3: PE callback reason: %d", reason);
+	pe_debug("LFR3: PE callback reason: %d %s", reason,
+				pe_roam_op_code_to_string(reason));
 	switch (reason) {
 	case SIR_ROAMING_START:
 		session_ptr->fw_roaming_started = true;
@@ -2085,10 +2091,6 @@ QDF_STATUS pe_roam_synch_callback(tpAniSirGlobal mac_ctx,
 		return status;
 	}
 
-	pe_debug("LFR3:Received WMA_ROAM_OFFLOAD_SYNCH_IND LFR3:auth: %d vdevId: %d",
-		roam_sync_ind_ptr->authStatus, roam_sync_ind_ptr->roamedVdevId);
-	lim_print_mac_addr(mac_ctx, roam_sync_ind_ptr->bssid.bytes,
-			QDF_TRACE_LEVEL_DEBUG);
 	/*
 	 * If deauth from AP already in progress, ignore Roam Synch Indication
 	 * from firmware.

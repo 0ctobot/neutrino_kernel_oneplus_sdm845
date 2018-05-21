@@ -1,9 +1,6 @@
 /*
  * Copyright (c) 2015-2018 The Linux Foundation. All rights reserved.
  *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 #include <linux/platform_device.h>
@@ -48,6 +39,7 @@
 #include "wlan_hdd_driver_ops.h"
 #include "wlan_hdd_scan.h"
 #include "wlan_hdd_ipa.h"
+#include "wlan_hdd_debugfs.h"
 
 #ifdef MODULE
 #define WLAN_MODULE_NAME  module_name(THIS_MODULE)
@@ -476,6 +468,9 @@ static void wlan_hdd_remove(struct device *dev)
 	if (!cds_wait_for_external_threads_completion(__func__))
 		hdd_warn("External threads are still active attempting driver unload anyway");
 
+	if (!hdd_wait_for_debugfs_threads_completion())
+		hdd_warn("Debugfs threads are still active attempting driver unload anyway");
+
 	hdd_pld_driver_unloading(dev);
 
 	if (QDF_IS_EPPING_ENABLED(cds_get_conparam())) {
@@ -574,6 +569,9 @@ static void wlan_hdd_shutdown(void)
 
 	if (!cds_wait_for_external_threads_completion(__func__))
 		hdd_err("Host is not ready for SSR, attempting anyway");
+
+	if (!hdd_wait_for_debugfs_threads_completion())
+		hdd_err("Debufs threads are still pending, attempting SSR anyway");
 
 	if (!QDF_IS_EPPING_ENABLED(cds_get_conparam())) {
 		hif_disable_isr(hif_ctx);
@@ -1395,7 +1393,6 @@ static void wlan_hdd_pld_uevent(struct device *dev,
 
 	ENTER();
 
-	mutex_lock(&hdd_init_deinit_lock);
 
 	hdd_info("pld event %d", uevent->uevent);
 
@@ -1409,8 +1406,10 @@ static void wlan_hdd_pld_uevent(struct device *dev,
 
 	wlan_hdd_set_the_pld_uevent(uevent);
 
+	mutex_lock(&hdd_init_deinit_lock);
 	switch (uevent->uevent) {
 	case PLD_RECOVERY:
+		cds_set_target_ready(false);
 		hdd_pld_ipa_uc_shutdown_pipes();
 		wlan_hdd_purge_notifier();
 		break;
@@ -1418,9 +1417,9 @@ static void wlan_hdd_pld_uevent(struct device *dev,
 		hdd_cleanup_on_fw_down();
 		break;
 	}
-uevent_not_allowed:
 	mutex_unlock(&hdd_init_deinit_lock);
 
+uevent_not_allowed:
 	EXIT();
 	return;
 }
