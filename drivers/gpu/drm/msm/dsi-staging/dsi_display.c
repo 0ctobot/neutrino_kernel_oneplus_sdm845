@@ -38,6 +38,9 @@
 #include <linux/sched.h>
 #include "../sde/sde_trace.h"
 
+int backlight_min = 0;
+module_param(backlight_min, int, 0644);
+
 #define to_dsi_bridge(x)  container_of((x), struct dsi_bridge, base)
 
 #define to_dsi_display(x) container_of(x, struct dsi_display, host)
@@ -174,6 +177,9 @@ int dsi_display_set_backlight(void *display, u32 bl_lvl)
 
 	bl_scale_ad = panel->bl_config.bl_scale_ad;
 	bl_temp = (u32)bl_temp * bl_scale_ad / MAX_AD_BL_SCALE_LEVEL;
+
+	if (bl_temp != 0 && bl_temp < backlight_min)
+		bl_temp = backlight_min;
 
 	pr_debug("bl_scale = %u, bl_scale_ad = %u, bl_lvl = %u\n",
 		bl_scale, bl_scale_ad, (u32)bl_temp);
