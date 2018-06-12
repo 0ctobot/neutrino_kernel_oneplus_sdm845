@@ -5008,7 +5008,7 @@ static int cyttsp5_device_access_probe(struct device *dev, void **data)
 	dad->result = result;
 
 	test_case_field_array =
-		kzalloc(sizeof(*test_case_field_array) * MAX_CASE_NUM,
+		kcalloc(MAX_CASE_NUM, sizeof(*test_case_field_array),
 			GFP_KERNEL);
 	if (!test_case_field_array) {
 		rc = -ENOMEM;
@@ -5016,7 +5016,7 @@ static int cyttsp5_device_access_probe(struct device *dev, void **data)
 	}
 
 	test_case_search_array =
-		kzalloc(sizeof(*test_case_search_array) * MAX_CASE_NUM,
+		kcalloc(MAX_CASE_NUM, sizeof(*test_case_search_array),
 			GFP_KERNEL);
 	if (!test_case_search_array) {
 		rc = -ENOMEM;
@@ -5024,37 +5024,37 @@ static int cyttsp5_device_access_probe(struct device *dev, void **data)
 	}
 
 	cmcp_info->gd_sensor_col = (struct gd_sensor *)
-		kzalloc(tx_num * sizeof(struct gd_sensor), GFP_KERNEL);
+		kcalloc(tx_num, sizeof(struct gd_sensor), GFP_KERNEL);
 	if (cmcp_info->gd_sensor_col == NULL)
 		goto cyttsp5_device_access_probe_gd_sensor_col_failed;
 
 	cmcp_info->gd_sensor_row = (struct gd_sensor *)
-		kzalloc(rx_num * sizeof(struct gd_sensor), GFP_KERNEL);
+		kcalloc(rx_num, sizeof(struct gd_sensor), GFP_KERNEL);
 	if (cmcp_info->gd_sensor_row == NULL)
 		goto cyttsp5_device_access_probe_gd_sensor_row_failed;
 
 	cmcp_info->cm_data_panel =
-		kzalloc((tx_num * rx_num + 1) * sizeof(int32_t), GFP_KERNEL);
+		kcalloc(tx_num * rx_num + 1, sizeof(int32_t), GFP_KERNEL);
 	if (cmcp_info->cm_data_panel == NULL)
 		goto cyttsp5_device_access_probe_cm_data_panel_failed;
 
 	cmcp_info->cp_tx_data_panel =
-		kzalloc(tx_num * sizeof(int32_t), GFP_KERNEL);
+		kcalloc(tx_num, sizeof(int32_t), GFP_KERNEL);
 	if (cmcp_info->cp_tx_data_panel == NULL)
 		goto cyttsp5_device_access_probe_cp_tx_data_panel_failed;
 
 	cmcp_info->cp_tx_cal_data_panel =
-		kzalloc(tx_num * sizeof(int32_t), GFP_KERNEL);
+		kcalloc(tx_num, sizeof(int32_t), GFP_KERNEL);
 	if (cmcp_info->cp_tx_cal_data_panel == NULL)
 		goto cyttsp5_device_access_probe_cp_tx_cal_data_panel_failed;
 
 	cmcp_info->cp_rx_data_panel =
-		kzalloc(rx_num * sizeof(int32_t), GFP_KERNEL);
+		kcalloc(rx_num, sizeof(int32_t), GFP_KERNEL);
 	if (cmcp_info->cp_rx_data_panel == NULL)
 		goto cyttsp5_device_access_probe_cp_rx_data_panel_failed;
 
 	cmcp_info->cp_rx_cal_data_panel =
-		kzalloc(rx_num * sizeof(int32_t), GFP_KERNEL);
+		kcalloc(rx_num, sizeof(int32_t), GFP_KERNEL);
 	if (cmcp_info->cp_rx_cal_data_panel == NULL)
 		goto cyttsp5_device_access_probe_cp_rx_cal_data_panel_failed;
 
@@ -5067,12 +5067,12 @@ static int cyttsp5_device_access_probe(struct device *dev, void **data)
 		goto cyttsp5_device_access_probe_cp_btn_data_failed;
 
 	cmcp_info->cm_sensor_column_delta =
-		kzalloc(rx_num * tx_num * sizeof(int32_t), GFP_KERNEL);
+		kcalloc(rx_num * tx_num, sizeof(int32_t), GFP_KERNEL);
 	if (cmcp_info->cm_sensor_column_delta == NULL)
 		goto cyttsp5_device_access_probe_cm_sensor_column_delta_failed;
 
 	cmcp_info->cm_sensor_row_delta =
-		kzalloc(tx_num * rx_num * sizeof(int32_t), GFP_KERNEL);
+		kcalloc(tx_num * rx_num, sizeof(int32_t), GFP_KERNEL);
 	if (cmcp_info->cm_sensor_row_delta == NULL)
 		goto cyttsp5_device_access_probe_cm_sensor_row_delta_failed;
 

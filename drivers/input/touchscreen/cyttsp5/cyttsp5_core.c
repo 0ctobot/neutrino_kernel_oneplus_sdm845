@@ -1147,8 +1147,8 @@ static int cyttsp5_si_setup(struct cyttsp5_core_data *cd)
 	int max_tch = si->sensing_conf_data.max_tch;
 
 	if (!si->xy_data)
-		si->xy_data = kzalloc(max_tch * si->desc.tch_record_size,
-				GFP_KERNEL);
+		si->xy_data = kcalloc(max_tch, si->desc.tch_record_size,
+				      GFP_KERNEL);
 	if (!si->xy_data)
 		return -ENOMEM;
 
