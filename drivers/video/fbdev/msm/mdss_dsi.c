@@ -645,8 +645,9 @@ static int mdss_dsi_get_dt_vreg_data(struct device *dev,
 		pr_debug("%s: vreg found. count=%d\n", __func__, mp->num_vreg);
 	}
 
-	mp->vreg_config = devm_kzalloc(dev, sizeof(struct mdss_vreg) *
-		mp->num_vreg, GFP_KERNEL);
+	mp->vreg_config = devm_kcalloc(dev,
+				       mp->num_vreg, sizeof(struct mdss_vreg),
+				       GFP_KERNEL);
 	if (!mp->vreg_config) {
 		rc = -ENOMEM;
 		goto error;

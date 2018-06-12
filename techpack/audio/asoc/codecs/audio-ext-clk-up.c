@@ -520,8 +520,8 @@ static int audio_ref_clk_probe(struct platform_device *pdev)
 				     "qcom,audio-ref-clk-gpio", 0);
 	if (clk_gpio > 0) {
 		clk_data->clk_num = ARRAY_SIZE(audio_msm_hws);
-		clk_data->clks = devm_kzalloc(&pdev->dev,
-					clk_data->clk_num *
+		clk_data->clks = devm_kcalloc(&pdev->dev,
+					clk_data->clk_num,
 					sizeof(struct clk *),
 					GFP_KERNEL);
 		if (!clk_data->clks)
@@ -539,8 +539,8 @@ static int audio_ref_clk_probe(struct platform_device *pdev)
 		}
 	} else {
 		clk_data->clk_num = ARRAY_SIZE(audio_msm_hws1);
-		clk_data->clks = devm_kzalloc(&pdev->dev,
-					clk_data->clk_num *
+		clk_data->clks = devm_kcalloc(&pdev->dev,
+					clk_data->clk_num,
 					sizeof(struct clk *),
 					GFP_KERNEL);
 		if (!clk_data->clks)
