@@ -37,7 +37,7 @@ static __inline__ void *drm_calloc_large(size_t nmemb, size_t size)
 	if (size * nmemb <= PAGE_SIZE)
 	    return kcalloc(nmemb, size, GFP_KERNEL);
 
-	return vzalloc(size * nmemb);
+	return vzalloc(array_size(nmemb, size));
 }
 
 /* Modeled after cairo's malloc_ab, it's like calloc but without the zeroing. */
