@@ -241,8 +241,8 @@ static int msm_vfe32_init_hardware(struct vfe_device *vfe_dev)
 		goto fs_failed;
 	} else {
 		vfe_dev->vfe_clk =
-			kzalloc(sizeof(struct clk *) * vfe_dev->num_clk,
-			GFP_KERNEL);
+			kcalloc(vfe_dev->num_clk, sizeof(struct clk *),
+				GFP_KERNEL);
 		if (!vfe_dev->vfe_clk) {
 			pr_err("%s:%d No memory\n", __func__, __LINE__);
 			return -ENOMEM;
