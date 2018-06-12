@@ -49,7 +49,7 @@ static __inline__ void *drm_malloc_ab(size_t nmemb, size_t size)
 	if (size * nmemb <= PAGE_SIZE)
 	    return kmalloc_array(size, nmemb, GFP_KERNEL);
 
-	return vmalloc(size * nmemb);
+	return vmalloc(array_size(nmemb, size));
 }
 
 static __inline__ void *drm_malloc_gfp(size_t nmemb, size_t size, gfp_t gfp)
