@@ -566,7 +566,7 @@ static struct scatterlist *sg_clone(struct scatterlist *orig_sgl, u64 len,
 	if (padding)
 		nents += 2;
 
-	head = vmalloc(nents * sizeof(struct scatterlist));
+	head = vmalloc(array_size(nents, sizeof(struct scatterlist)));
 	if (!head)
 		return ERR_PTR(-ENOMEM);
 
