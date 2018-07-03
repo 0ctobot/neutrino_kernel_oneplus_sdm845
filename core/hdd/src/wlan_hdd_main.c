@@ -517,10 +517,13 @@ static int __hdd_netdev_notifier_call(struct notifier_block *nb,
 				msecs_to_jiffies(WLAN_WAIT_TIME_ABORTSCAN));
 			if (!rc)
 				hdd_err("Timeout occurred while waiting for abortscan");
-		} else {
-			cds_flush_work(&adapter->scan_block_work);
-			hdd_debug("Scan is not Pending from user");
 		}
+		cds_flush_work(&adapter->scan_block_work);
+		/* Need to clean up blocked scan request */
+		wlan_hdd_cfg80211_scan_block_cb(&adapter->scan_block_work);
+		qdf_list_destroy(&adapter->blocked_scan_request_q);
+		qdf_mutex_destroy(&adapter->blocked_scan_request_q_lock);
+		hdd_debug("Scan is not Pending from user");
 		/*
 		 * After NETDEV_GOING_DOWN, kernel calls hdd_stop.Irrespective
 		 * of return status of hdd_stop call, kernel resets the IFF_UP
@@ -771,8 +774,7 @@ int hdd_validate_adapter(hdd_adapter_t *adapter)
 	}
 
 	if (adapter->magic != WLAN_HDD_ADAPTER_MAGIC) {
-		hdd_err("bad adapter magic: 0x%x (should be 0x%x)",
-		adapter->magic, WLAN_HDD_ADAPTER_MAGIC);
+		hdd_err("bad adapter magic");
 		return -EINVAL;
 	}
 
@@ -1962,6 +1964,64 @@ static int hdd_mon_open(struct net_device *dev)
 }
 
 /**
+ * wlan_hdd_update_dbs_scan_and_fw_mode_config() - Send updated dual mac scan
+ * configuration and fw mode configuration
+ *
+ * This is called from hdd_start_adapter after the device specific adapter is
+ * started
+ *
+ * Return: 0 for success; non-zero for failure
+ */
+static QDF_STATUS
+wlan_hdd_update_dbs_scan_and_fw_mode_config(void)
+{
+		struct sir_dual_mac_config cfg = {0};
+		QDF_STATUS status;
+		uint32_t channel_select_logic_conc;
+		hdd_context_t *hdd_ctx;
+
+		hdd_ctx = cds_get_context(QDF_MODULE_ID_HDD);
+		if (!hdd_ctx) {
+			hdd_err("HDD context is NULL");
+			return QDF_STATUS_E_FAILURE;
+		}
+		if (!wma_is_hw_dbs_capable())
+			return QDF_STATUS_SUCCESS;
+
+		cfg.scan_config = 0;
+		cfg.fw_mode_config = 0;
+		cfg.set_dual_mac_cb = cds_soc_set_dual_mac_cfg_cb;
+
+		channel_select_logic_conc = hdd_ctx->config->
+						channel_select_logic_conc;
+
+		if (hdd_ctx->config->dual_mac_feature_disable !=
+		    DISABLE_DBS_CXN_AND_SCAN) {
+			status = wma_get_updated_scan_and_fw_mode_config(
+				 &cfg.scan_config, &cfg.fw_mode_config,
+				 hdd_ctx->config->dual_mac_feature_disable,
+				 channel_select_logic_conc);
+
+			if (status != QDF_STATUS_SUCCESS) {
+				hdd_err("wma_get_updated_scan_and_fw_mode_config failed %d",
+					status);
+				return status;
+			}
+		}
+
+		hdd_debug("send scan_cfg: 0x%x fw_mode_cfg: 0x%x to fw",
+			  cfg.scan_config, cfg.fw_mode_config);
+
+		status = sme_soc_set_dual_mac_config(hdd_ctx->hHal, cfg);
+		if (status != QDF_STATUS_SUCCESS) {
+			hdd_err("sme_soc_set_dual_mac_config failed %d",
+				status);
+			return status;
+		}
+
+		return QDF_STATUS_SUCCESS;
+}
+/**
  * hdd_start_adapter() - Wrapper function for device specific adapter
  * @adapter: pointer to HDD adapter
  *
@@ -2024,6 +2084,7 @@ int hdd_start_adapter(hdd_adapter_t *adapter)
 		hdd_err("Failed to register frames - ret %d", ret);
 		goto err_start_adapter;
 	}
+	wlan_hdd_update_dbs_scan_and_fw_mode_config();
 exit:
 	EXIT();
 	return 0;
@@ -3574,6 +3635,35 @@ void hdd_cleanup_actionframe_no_wait(hdd_context_t *hdd_ctx,
 }
 
 /**
+ * hdd_cleanup_actionframe_all_adapters() - Clean up pending action frame
+ * @hdd_ctx: global hdd context
+ *
+ * This function cleans up pending action frame without waiting for
+ * ack on all adapters.
+ *
+ * Return: None
+ */
+static QDF_STATUS hdd_cleanup_actionframe_all_adapters(hdd_context_t *hdd_ctx)
+{
+	hdd_adapter_list_node_t *adapter_node = NULL, *next = NULL;
+	QDF_STATUS status;
+	hdd_adapter_t *adapter;
+
+	ENTER();
+
+	status = hdd_get_front_adapter(hdd_ctx, &adapter_node);
+	while (adapter_node && QDF_IS_STATUS_SUCCESS(status)) {
+		adapter = adapter_node->pAdapter;
+		hdd_cleanup_actionframe_no_wait(hdd_ctx, adapter);
+		status = hdd_get_next_adapter(hdd_ctx, adapter_node, &next);
+		adapter_node = next;
+	}
+
+	EXIT();
+	return QDF_STATUS_SUCCESS;
+}
+
+/**
  * hdd_station_adapter_deinit() - De-initialize the station adapter
  * @hdd_ctx: global hdd context
  * @adapter: HDD adapter
@@ -4384,6 +4474,9 @@ hdd_adapter_t *hdd_open_adapter(hdd_context_t *hdd_ctx, uint8_t session_type,
 	}
 
 	INIT_WORK(&adapter->scan_block_work, wlan_hdd_cfg80211_scan_block_cb);
+	qdf_list_create(&adapter->blocked_scan_request_q,
+			CFG_MAX_SCAN_COUNT_MAX);
+	qdf_mutex_create(&adapter->blocked_scan_request_q_lock);
 
 	cfgState = WLAN_HDD_GET_CFG_STATE_PTR(adapter);
 	mutex_init(&cfgState->remain_on_chan_ctx_lock);
@@ -4864,6 +4957,7 @@ QDF_STATUS hdd_stop_adapter(hdd_context_t *hdd_ctx, hdd_adapter_t *adapter,
 			/* Reset WNI_CFG_PROBE_RSP Flags */
 			wlan_hdd_reset_prob_rspies(adapter);
 		}
+		clear_bit(SOFTAP_INIT_DONE, &adapter->event_flags);
 		qdf_mem_free(adapter->sessionCtx.ap.beacon);
 		adapter->sessionCtx.ap.beacon = NULL;
 		if (true == bCloseSession)
@@ -4963,6 +5057,33 @@ QDF_STATUS hdd_stop_all_adapters(hdd_context_t *hdd_ctx, bool close_session)
 	return QDF_STATUS_SUCCESS;
 }
 
+#ifdef QCA_LL_LEGACY_TX_FLOW_CONTROL
+/**
+ * hdd_adapter_abort_tx_flow() - Abort the tx flow control
+ * @pAdapter: pointer to hdd_adapter_t
+ *
+ * Resume tx and stop the tx flow control timer if the tx is paused and the flow
+ * control timer is running. This function is called by SSR to avoid the
+ * inconsistency of tx status before and after SSR.
+ *
+ * Return: void
+ */
+static void hdd_adapter_abort_tx_flow(hdd_adapter_t *adapter)
+{
+	if ((adapter->hdd_stats.hddTxRxStats.is_txflow_paused == TRUE) &&
+		(QDF_TIMER_STATE_RUNNING ==
+		qdf_mc_timer_get_current_state(&adapter->tx_flow_control_timer))) {
+		hdd_tx_resume_timer_expired_handler(adapter);
+		qdf_mc_timer_stop(&adapter->tx_flow_control_timer);
+	}
+}
+#else
+static void hdd_adapter_abort_tx_flow(hdd_adapter_t *pAdapter)
+{
+	return;
+}
+#endif
+
 QDF_STATUS hdd_reset_all_adapters(hdd_context_t *hdd_ctx)
 {
 	hdd_adapter_list_node_t *adapterNode = NULL, *pNext = NULL;
@@ -4982,6 +5103,8 @@ QDF_STATUS hdd_reset_all_adapters(hdd_context_t *hdd_ctx)
 
 	while (NULL != adapterNode && QDF_STATUS_SUCCESS == status) {
 		adapter = adapterNode->pAdapter;
+
+		hdd_adapter_abort_tx_flow(adapter);
 
 		if ((adapter->device_mode == QDF_STA_MODE) ||
 		    (adapter->device_mode == QDF_P2P_CLIENT_MODE)) {
@@ -5570,14 +5693,54 @@ void hdd_connect_result(struct net_device *dev, const u8 *bssid,
 #endif
 
 
+#ifdef MSM_PLATFORM
+/**
+ * hdd_stop_p2p_go() - call cfg80211 API to stop P2P GO
+ * @adapter: pointer to adapter
+ *
+ * This function calls cfg80211 API to stop P2P GO
+ *
+ * Return: None
+ */
+static void hdd_stop_p2p_go(hdd_adapter_t *adapter)
+{
+	hdd_debug("[SSR] send stop ap to supplicant");
+	cfg80211_ap_stopped(adapter->dev, GFP_KERNEL);
+}
+
+static inline void hdd_delete_sta(hdd_adapter_t *adapter)
+{
+}
+#else
+static inline void hdd_stop_p2p_go(hdd_adapter_t *adapter)
+{
+}
+
+/**
+ * hdd_delete_sta() - call cfg80211 API to delete STA
+ * @adapter: pointer to adapter
+ *
+ * This function calls cfg80211 API to delete STA
+ *
+ * Return: None
+ */
+static void hdd_delete_sta(hdd_adapter_t *adapter)
+{
+	struct qdf_mac_addr bcast_mac = QDF_MAC_ADDR_BROADCAST_INITIALIZER;
+
+	hdd_debug("[SSR] send restart supplicant");
+	/* event supplicant to restart */
+	cfg80211_del_sta(adapter->dev,
+			 (const u8 *)&bcast_mac.bytes[0],
+			 GFP_KERNEL);
+}
+#endif
+
 QDF_STATUS hdd_start_all_adapters(hdd_context_t *hdd_ctx)
 {
 	hdd_adapter_list_node_t *adapterNode = NULL, *pNext = NULL;
 	QDF_STATUS status;
 	hdd_adapter_t *adapter;
-#ifndef MSM_PLATFORM
-	struct qdf_mac_addr bcastMac = QDF_MAC_ADDR_BROADCAST_INITIALIZER;
-#endif
 	eConnectionState connState;
 
 	ENTER();
@@ -5655,16 +5818,7 @@ QDF_STATUS hdd_start_all_adapters(hdd_context_t *hdd_ctx)
 			break;
 
 		case QDF_P2P_GO_MODE:
-#ifdef MSM_PLATFORM
-			hdd_debug("[SSR] send stop ap to supplicant");
-			cfg80211_ap_stopped(adapter->dev, GFP_KERNEL);
-#else
-			hdd_debug("[SSR] send restart supplicant");
-			/* event supplicant to restart */
-			cfg80211_del_sta(adapter->dev,
-					 (const u8 *)&bcastMac.bytes[0],
-					 GFP_KERNEL);
-#endif
+			hdd_delete_sta(adapter);
 			break;
 		case QDF_MONITOR_MODE:
 			hdd_init_station_mode(adapter);
@@ -5683,6 +5837,20 @@ QDF_STATUS hdd_start_all_adapters(hdd_context_t *hdd_ctx)
 		wlan_hdd_cfg80211_register_frames(adapter);
 
 get_adapter:
+		status = hdd_get_next_adapter(hdd_ctx, adapterNode, &pNext);
+		adapterNode = pNext;
+	}
+
+	status = hdd_get_front_adapter(hdd_ctx, &adapterNode);
+	while (NULL != adapterNode && QDF_STATUS_SUCCESS == status) {
+		adapter = adapterNode->pAdapter;
+
+		if (!hdd_is_interface_up(adapter))
+			goto get_adapter_sec;
+
+		if (adapter->device_mode == QDF_P2P_GO_MODE)
+			hdd_stop_p2p_go(adapter);
+get_adapter_sec:
 		status = hdd_get_next_adapter(hdd_ctx, adapterNode, &pNext);
 		adapterNode = pNext;
 	}
@@ -6226,10 +6394,11 @@ void hdd_unregister_notifiers(hdd_context_t *hdd_ctx)
  */
 static void hdd_exit_netlink_services(hdd_context_t *hdd_ctx)
 {
+	spectral_scan_deactivate_service();
+	cnss_diag_deactivate_service();
 	hdd_close_cesium_nl_sock();
-
 	ptt_sock_deactivate_svc();
-
+	oem_deactivate_service();
 	nl_srv_exit();
 }
 
@@ -6259,11 +6428,7 @@ static int hdd_init_netlink_services(hdd_context_t *hdd_ctx)
 		goto err_nl_srv;
 	}
 
-	ret = ptt_sock_activate_svc();
-	if (ret) {
-		hdd_err("ptt_sock_activate_svc failed: %d", ret);
-		goto err_nl_srv;
-	}
+	ptt_sock_activate_svc();
 
 	ret = hdd_open_cesium_nl_sock();
 	if (ret)
@@ -6278,14 +6443,17 @@ static int hdd_init_netlink_services(hdd_context_t *hdd_ctx)
 	ret = spectral_scan_activate_service();
 	if (ret) {
 		hdd_alert("spectral_scan_activate_service failed: %d", ret);
-		goto err_close_cesium;
+		goto err_cnss_diag;
 	}
 
 	return 0;
 
+err_cnss_diag:
+	cnss_diag_deactivate_service();
 err_close_cesium:
 	hdd_close_cesium_nl_sock();
 	ptt_sock_deactivate_svc();
+	oem_deactivate_service();
 err_nl_srv:
 	nl_srv_exit();
 out:
@@ -6330,6 +6498,7 @@ static int hdd_roc_context_init(hdd_context_t *hdd_ctx)
 {
 	qdf_spinlock_create(&hdd_ctx->hdd_roc_req_q_lock);
 	qdf_list_create(&hdd_ctx->hdd_roc_req_q, MAX_ROC_REQ_QUEUE_ENTRY);
+	qdf_idr_create(&hdd_ctx->p2p_idr);
 
 	INIT_DELAYED_WORK(&hdd_ctx->roc_req_work, wlan_hdd_roc_request_dequeue);
 
@@ -6346,6 +6515,7 @@ static int hdd_roc_context_init(hdd_context_t *hdd_ctx)
  */
 static void hdd_roc_context_destroy(hdd_context_t *hdd_ctx)
 {
+	qdf_idr_destroy(&hdd_ctx->p2p_idr);
 	qdf_list_destroy(&hdd_ctx->hdd_roc_req_q);
 	qdf_spinlock_destroy(&hdd_ctx->hdd_roc_req_q_lock);
 }
@@ -7985,13 +8155,23 @@ void hdd_unsafe_channel_restart_sap(hdd_context_t *hdd_ctxt)
 		}
 
 		found = false;
-		for (i = 0; i < hdd_ctxt->unsafe_channel_count; i++) {
-			if (adapter_temp->sessionCtx.ap.operatingChannel ==
-				hdd_ctxt->unsafe_channel_list[i]) {
-				found = true;
-				hdd_debug("operating ch:%d is unsafe",
-				  adapter_temp->sessionCtx.ap.operatingChannel);
-				break;
+		/*
+		 * If STA+SAP is doing SCC & g_sta_sap_scc_on_lte_coex_chan
+		 * is set, no need to move SAP.
+		 */
+		if (cds_is_sta_sap_scc(
+			adapter_temp->sessionCtx.ap.operatingChannel) &&
+			hdd_ctxt->config->sta_sap_scc_on_lte_coex_chan)
+			hdd_debug("SAP is allowed on SCC channel, no need to move SAP");
+		else {
+			for (i = 0; i < hdd_ctxt->unsafe_channel_count; i++) {
+				if (adapter_temp->sessionCtx.ap.operatingChannel ==
+					hdd_ctxt->unsafe_channel_list[i]) {
+					found = true;
+					hdd_debug("operating ch:%d is unsafe",
+					adapter_temp->sessionCtx.ap.operatingChannel);
+					break;
+				}
 			}
 		}
 
@@ -8378,53 +8558,6 @@ void hdd_indicate_mgmt_frame(tSirSmeMgmtFrameInd *frame_ind)
 						frame_ind->frameType,
 						frame_ind->rxChan,
 						frame_ind->rxRssi);
-}
-
-static QDF_STATUS
-wlan_hdd_update_dbs_scan_and_fw_mode_config(hdd_context_t *hdd_ctx)
-{
-	struct sir_dual_mac_config cfg = {0};
-	QDF_STATUS status;
-	uint32_t channel_select_logic_conc;
-
-	if (!hdd_ctx) {
-		hdd_err("HDD context is NULL");
-		return QDF_STATUS_E_FAILURE;
-	}
-	if (!wma_is_hw_dbs_capable())
-		return QDF_STATUS_SUCCESS;
-
-	cfg.scan_config = 0;
-	cfg.fw_mode_config = 0;
-	cfg.set_dual_mac_cb = cds_soc_set_dual_mac_cfg_cb;
-
-	channel_select_logic_conc = hdd_ctx->config->
-						channel_select_logic_conc;
-
-	if (hdd_ctx->config->dual_mac_feature_disable !=
-	    DISABLE_DBS_CXN_AND_SCAN) {
-		status = wma_get_updated_scan_and_fw_mode_config(
-				&cfg.scan_config, &cfg.fw_mode_config,
-				hdd_ctx->config->dual_mac_feature_disable,
-				channel_select_logic_conc);
-
-		if (status != QDF_STATUS_SUCCESS) {
-			hdd_err("wma_get_updated_scan_and_fw_mode_config failed %d",
-				status);
-			return status;
-		}
-	}
-
-	hdd_debug("send scan_cfg: 0x%x fw_mode_cfg: 0x%x to fw",
-		  cfg.scan_config, cfg.fw_mode_config);
-
-	status = sme_soc_set_dual_mac_config(hdd_ctx->hHal, cfg);
-	if (status != QDF_STATUS_SUCCESS) {
-		hdd_err("sme_soc_set_dual_mac_config failed %d", status);
-		return status;
-	}
-
-	return QDF_STATUS_SUCCESS;
 }
 
 /**
@@ -10260,11 +10393,6 @@ static int hdd_features_init(hdd_context_t *hdd_ctx, hdd_adapter_t *adapter)
 	wlan_hdd_tsf_init(hdd_ctx);
 	hdd_encrypt_decrypt_init(hdd_ctx);
 
-	status = wlan_hdd_update_dbs_scan_and_fw_mode_config(hdd_ctx);
-	if (!QDF_IS_STATUS_SUCCESS(status)) {
-		hdd_err("Failed to set dbs scan and fw mode cfg");
-		goto deregister_frames;
-	}
 	if (hdd_ctx->config->goptimize_chan_avoid_event) {
 		status = sme_enable_disable_chanavoidind_event(
 							hdd_ctx->hHal, 0);
@@ -12547,6 +12675,7 @@ static void hdd_stop_present_mode(hdd_context_t *hdd_ctx,
 		/* fallthrough */
 	case QDF_GLOBAL_MISSION_MODE:
 	case QDF_GLOBAL_FTM_MODE:
+		hdd_cleanup_actionframe_all_adapters(hdd_ctx);
 		hdd_abort_mac_scan_all_adapters(hdd_ctx);
 		hdd_cleanup_scan_queue(hdd_ctx, NULL);
 

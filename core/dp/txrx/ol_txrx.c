@@ -2469,6 +2469,7 @@ void ol_txrx_vdev_register(ol_txrx_vdev_handle vdev,
 	vdev->osif_dev = osif_vdev;
 	vdev->rx = txrx_ops->rx.rx;
 	vdev->stats_rx = txrx_ops->rx.stats_rx;
+	vdev->tx_comp = txrx_ops->tx.tx_comp;
 	txrx_ops->tx.tx = ol_tx_data;
 }
 
@@ -3511,6 +3512,9 @@ bool ol_txrx_is_peer_eligible_for_deletion(ol_txrx_peer_handle peer,
 
 	for (i = 0; i < MAX_NUM_PEER_ID_PER_PEER; i++) {
 		peer_id = peer->peer_ids[i];
+
+		if (peer_id == HTT_INVALID_PEER)
+			continue;
 
 		if (!pdev->peer_id_to_obj_map[peer_id].peer_ref)
 			continue;
