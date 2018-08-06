@@ -2231,7 +2231,14 @@ void wlan_hdd_check_conc_and_update_tdls_state(hdd_context_t *hdd_ctx,
 								hdd_ctx, true);
 			return;
 		}
-		wlan_hdd_update_tdls_info(temp_adapter, false, false);
+		mutex_lock(&hdd_ctx->tdls_lock);
+		if (eTDLS_SUPPORT_NOT_ENABLED == hdd_ctx->tdls_mode ||
+		    hdd_ctx->set_state_info.set_state_cnt == 0) {
+			mutex_unlock(&hdd_ctx->tdls_lock);
+			wlan_hdd_update_tdls_info(temp_adapter, false, false);
+			return;
+		}
+		mutex_unlock(&hdd_ctx->tdls_lock);
 	}
 }
 
@@ -5620,7 +5627,8 @@ static void wlan_hdd_tdls_ct_sampling_tx_rx(hdd_adapter_t *adapter,
 		return;
 	}
 
-	valid_mac_entries = hdd_ctx->valid_mac_entries;
+	valid_mac_entries = QDF_MIN(hdd_ctx->valid_mac_entries,
+				    TDLS_CT_MAC_MAX_TABLE_SIZE);
 
 	memcpy(ct_peer_mac_table, hdd_ctx->ct_peer_mac_table,
 	       (sizeof(struct tdls_ct_mac_table)) * valid_mac_entries);

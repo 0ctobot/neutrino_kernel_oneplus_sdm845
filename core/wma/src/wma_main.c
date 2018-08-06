@@ -832,6 +832,8 @@ static void wma_set_modulated_dtim(tp_wma_handle wma,
 		&wma->interfaces[vdev_id];
 	bool prev_dtim_enabled;
 	uint32_t listen_interval;
+	uint32_t beacon_interval_mod;
+	uint32_t max_mod_dtim;
 	QDF_STATUS ret;
 
 	iface->alt_modulated_dtim = privcmd->param_value;
@@ -846,22 +848,41 @@ static void wma_set_modulated_dtim(tp_wma_handle wma,
 	if ((true == iface->alt_modulated_dtim_enabled) ||
 	    (true == prev_dtim_enabled)) {
 
-		listen_interval = iface->alt_modulated_dtim
-			* iface->dtimPeriod;
+		beacon_interval_mod = iface->beaconInterval / 100;
+		if (!beacon_interval_mod)
+			beacon_interval_mod = 1;
 
-		ret = wma_vdev_set_param(wma->wmi_handle,
-						privcmd->param_vdev_id,
-						WMI_VDEV_PARAM_LISTEN_INTERVAL,
-						listen_interval);
+		if (iface->dtimPeriod)
+			max_mod_dtim = wma->staMaxLIModDtim
+				/ (iface->dtimPeriod*beacon_interval_mod);
+		else
+			max_mod_dtim = wma->staMaxLIModDtim/beacon_interval_mod;
+
+		if (!max_mod_dtim)
+			max_mod_dtim = 1;
+
+		if (iface->alt_modulated_dtim > max_mod_dtim) {
+			WMA_LOGE("User ModDtim(%d) exceeding ceiling limit(%d)",
+				 iface->alt_modulated_dtim, max_mod_dtim);
+			listen_interval = max_mod_dtim * iface->dtimPeriod;
+		} else {
+			listen_interval = iface->alt_modulated_dtim
+						* iface->dtimPeriod;
+		}
+
+		WMA_LOGD("Setting Listen Interval %d for vdev id %d",
+			 listen_interval, vdev_id);
+		ret = wma_vdev_set_param(wma->wmi_handle, vdev_id,
+					 WMI_VDEV_PARAM_LISTEN_INTERVAL,
+					 listen_interval);
 		if (QDF_IS_STATUS_ERROR(ret))
 			/* Even if it fails, continue */
 			WMA_LOGW("Failed to set listen interval %d",
 				 listen_interval);
 
-		ret = wma_vdev_set_param(wma->wmi_handle,
-						privcmd->param_vdev_id,
-						WMI_VDEV_PARAM_DTIM_POLICY,
-						NORMAL_DTIM);
+		ret = wma_vdev_set_param(wma->wmi_handle, vdev_id,
+					 WMI_VDEV_PARAM_DTIM_POLICY,
+					 NORMAL_DTIM);
 		if (QDF_IS_STATUS_ERROR(ret))
 			WMA_LOGE("Failed to Set to Normal DTIM policy");
 	}
@@ -7160,8 +7181,8 @@ static QDF_STATUS wma_get_chain_rssi(tp_wma_handle wma_handle,
 
 	cmd = (wmi_pdev_div_get_rssi_antid_fixed_param *)buf_ptr;
 	WMITLV_SET_HDR(&cmd->tlv_header,
-		WMITLV_TAG_STRUC_wmi_peer_antdiv_info_req_cmd_fixed_param,
-		WMITLV_GET_STRUCT_TLVLEN(wmi_pdev_div_get_rssi_antid_fixed_param));
+	     WMITLV_TAG_STRUC_wmi_pdev_div_get_rssi_antid_fixed_param,
+	     WMITLV_GET_STRUCT_TLVLEN(wmi_pdev_div_get_rssi_antid_fixed_param));
 	cmd->pdev_id = 0;
 	WMI_CHAR_ARRAY_TO_MAC_ADDR(req_params->peer_macaddr.bytes,
 				&cmd->macaddr);
