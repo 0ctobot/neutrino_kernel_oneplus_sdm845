@@ -1863,6 +1863,10 @@ ifeq ($(CONFIG_WLAN_FEATURE_APF), y)
 CDEFINES += -DWLAN_FEATURE_APF
 endif
 
+ifeq ($(CONFIG_WLAN_FEATURE_SARV1_TO_SARV2), y)
+CDEFINES += -DWLAN_FEATURE_SARV1_TO_SARV2
+endif
+
 #Flag to enable/disable WLAN D0-WOW
 ifeq ($(CONFIG_PCI_MSM), y)
 ifeq ($(CONFIG_ROME_IF),pci)
@@ -1878,6 +1882,12 @@ endif
 #Flag to enable SMMU S1 support for SDM670
 ifeq ($(CONFIG_ARCH_SDM670), y)
 CDEFINES += -DENABLE_SMMU_S1_TRANSLATION
+endif
+
+ifeq ($(CONFIG_ARCH_SDXPOORWILLS), y)
+ifeq ($(CONFIG_ROME_IF),pci)
+CDEFINES += -DENABLE_SMMU_S1_TRANSLATION
+endif
 endif
 
 ifeq ($(CONFIG_DYNAMIC_DEBUG),y)

@@ -5073,6 +5073,12 @@ struct reg_table_entry g_registry_table[] = {
 			    VAR_FLAGS_OPTIONAL,
 			    (void *)CFG_ACTION_OUI_SWITCH_TO_11N_MODE_DEFAULT),
 
+	REG_VARIABLE_STRING(CFG_ACTION_OUI_CONNECT_1X1_WITH_1_CHAIN_NAME,
+		WLAN_PARAM_String,
+		struct hdd_config, action_oui_connect_1x1_with_1_chain,
+		VAR_FLAGS_OPTIONAL,
+		(void *)CFG_ACTION_OUI_CONNECT_1X1_WITH_1_CHAIN_DEFAULT),
+
 	REG_VARIABLE(CFG_DTIM_1CHRX_ENABLE_NAME, WLAN_PARAM_Integer,
 		struct hdd_config, enable_dtim_1chrx,
 		VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
@@ -5602,6 +5608,13 @@ struct reg_table_entry g_registry_table[] = {
 		     CFG_ENABLE_UINT_TEST_FRAMEWORK_DEFAULT,
 		     CFG_ENABLE_UNIT_TEST_FRAMEWORK_MIN,
 		     CFG_ENABLE_UNIT_TEST_FRAMEWORK_MAX),
+
+	REG_VARIABLE(CFG_ENABLE_DISABLE_CHANNEL_NAME, WLAN_PARAM_Integer,
+		     struct hdd_config, disable_channel,
+		     VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+		     CFG_ENABLE_DISABLE_CHANNEL_DEFAULT,
+		     CFG_ENABLE_DISABLE_CHANNEL_MIN,
+		     CFG_ENABLE_DISABLE_CHANNEL_MAX),
 
 	REG_VARIABLE(CFG_ENABLE_SECONDARY_RATE_NAME,
 		     WLAN_PARAM_HexInteger,
@@ -6599,6 +6612,46 @@ static void hdd_cfg_print_mws_coex(hdd_context_t *hdd_ctx)
 #endif
 
 /**
+ * hdd_cfg_print_action_oui() - print the action OUI configurations
+ * @hdd_ctx: pointer to the HDD context
+ *
+ * Return: None
+ */
+static void hdd_cfg_print_action_oui(hdd_context_t *hdd_ctx)
+{
+	struct hdd_config *config = hdd_ctx->config;
+
+	hdd_debug("Name = [%s] value = [%u]",
+		CFG_ENABLE_ACTION_OUI,
+		config->enable_action_oui);
+
+	hdd_debug("Name = [%s] value = [%s]",
+		CFG_ACTION_OUI_CONNECT_1X1_NAME,
+		config->action_oui_connect_1x1);
+
+	hdd_debug("Name = [%s] value = [%s]",
+		CFG_ACTION_OUI_ITO_EXTENSION_NAME,
+		config->action_oui_ito_extension);
+
+	hdd_debug("Name = [%s] value = [%s]",
+		CFG_ACTION_OUI_CCKM_1X1_NAME,
+		config->action_oui_cckm_1x1);
+
+	hdd_debug("Name = [%s] value = [%s]",
+		CFG_ACTION_OUI_ITO_ALTERNATE_NAME,
+		config->action_oui_ito_alternate);
+
+	hdd_debug("Name = [%s] value = [%s]",
+		CFG_ACTION_OUI_SWITCH_TO_11N_MODE_NAME,
+		config->action_oui_switch_to_11n);
+
+	hdd_debug("Name = [%s] value = [%s]",
+		CFG_ACTION_OUI_CONNECT_1X1_WITH_1_CHAIN_NAME,
+		config->action_oui_connect_1x1_with_1_chain);
+
+}
+
+/**
  * hdd_cfg_print() - print the hdd configuration
  * @iniTable: pointer to hdd context
  *
@@ -7527,6 +7580,9 @@ void hdd_cfg_print(hdd_context_t *pHddCtx)
 	hdd_debug("Name = [%s] Value = [%u]",
 		CFG_FORCE_RSNE_OVERRIDE_NAME,
 		pHddCtx->config->force_rsne_override);
+	hdd_debug("Name = [%s] value = [%d]",
+		  CFG_ENABLE_DISABLE_CHANNEL_NAME,
+		  pHddCtx->config->disable_channel);
 	hdd_debug("Name = [%s] value = [0x%x]",
 		  CFG_ENABLE_MAC_PROVISION_NAME,
 		  pHddCtx->config->mac_provision);
@@ -7561,6 +7617,8 @@ void hdd_cfg_print(hdd_context_t *pHddCtx)
 		  CFG_ROAM_FORCE_RSSI_TRIGGER_NAME,
 		  pHddCtx->config->roam_force_rssi_trigger);
 	hdd_cfg_print_mws_coex(pHddCtx);
+
+	hdd_cfg_print_action_oui(pHddCtx);
 }
 
 /**
@@ -9112,7 +9170,6 @@ hdd_validate_and_convert_info_mask(uint8_t *token,
 
 	info_mask = hex_value;
 
-	info_mask |= WMI_ACTION_OUI_INFO_OUI;
 	hdd_ext->info_mask = info_mask;
 
 	if (!info_mask || !(info_mask & ~WMI_ACTION_OUI_INFO_OUI)) {
@@ -9123,6 +9180,16 @@ hdd_validate_and_convert_info_mask(uint8_t *token,
 	if (info_mask & ~WMI_ACTION_OUI_INFO_MASK) {
 		hdd_err("Invalid bits are set in action OUI info mask");
 		return false;
+	}
+
+	/*
+	 * If OUI bit is not set in the info presence, we need to ignore the
+	 * OUI and OUI Data. Set OUI and OUI data length to 0 here.
+	 */
+	if (!(info_mask & WMI_ACTION_OUI_INFO_OUI)) {
+		hdd_ext->oui_length = 0;
+		hdd_ext->data_length = 0;
+		hdd_ext->data_mask_length = 0;
 	}
 
 	if (info_mask & WMI_ACTION_OUI_INFO_MAC_ADDRESS) {
@@ -9292,11 +9359,6 @@ hdd_set_action_oui_ext(hdd_context_t *hdd_ctx,
 	struct wmi_action_oui_extension *wmi_ext;
 	int ret = 0;
 	QDF_STATUS qdf_status;
-
-	if (!hdd_ext.oui_length) {
-		hdd_err("Invalid oui length");
-		return -EINVAL;
-	}
 
 	wmi_ext = qdf_mem_malloc(sizeof(*wmi_ext));
 	if (!wmi_ext) {
@@ -9565,6 +9627,11 @@ void hdd_set_all_sme_action_ouis(hdd_context_t *hdd_ctx)
 	ini_string[MAX_ACTION_OUI_STRING_LEN - 1] = '\0';
 	hdd_set_sme_action_oui(hdd_ctx, ini_string,
 			       WMI_ACTION_OUI_SWITCH_TO_11N_MODE);
+
+	ini_string = config->action_oui_connect_1x1_with_1_chain;
+	ini_string[MAX_ACTION_OUI_STRING_LEN - 1] = '\0';
+	hdd_set_sme_action_oui(hdd_ctx, ini_string,
+			       WMI_ACTION_OUI_CONNECT_1x1_WITH_1_CHAIN);
 
 }
 

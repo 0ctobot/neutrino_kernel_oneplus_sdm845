@@ -9687,6 +9687,8 @@ enum dot11p_mode {
  * 4 - enable DBS for connection as well as for scan with async
  *			scan policy disabled.
  * 5 - enable DBS for connection but disable dbs for scan.
+ * 6 - enable DBS for connection but disable simultaneous scan
+ *			from upper layer (DBS scan remains enabled in FW).
  *
  * Note: INI item value should match 'enum dbs_support'
  *
@@ -9700,7 +9702,7 @@ enum dot11p_mode {
  */
 #define CFG_DUAL_MAC_FEATURE_DISABLE               "gDualMacFeatureDisable"
 #define CFG_DUAL_MAC_FEATURE_DISABLE_MIN          (0)
-#define CFG_DUAL_MAC_FEATURE_DISABLE_MAX          (5)
+#define CFG_DUAL_MAC_FEATURE_DISABLE_MAX          (6)
 #define CFG_DUAL_MAC_FEATURE_DISABLE_DEFAULT      (0)
 
 /*
@@ -12328,6 +12330,9 @@ enum hw_filter_mode {
  *
  * <OUI> is mandatory and it can be either 3 or 5 bytes means 6 or 10
  * hexa-decimal characters
+ * If the OUI and Data checks needs to be ignored, the oui FFFFFF
+ * needs to be provided as OUI and bit 0 of Info_Presence_Bit should
+ * be set to 0.
  *
  * <Data_Length> is mandatory field and should give length of
  * the <Data> if present else zero
@@ -12348,8 +12353,8 @@ enum hw_filter_mode {
  * Presence of <Mac_Address> and <Capability> is
  * controlled by <Info_Presence_Bit> which is mandatory
  * <Info_Presence_Bit> will give the information for
- *   OUI – bit 0 (set/reset don't effect the behaviour,
- *                always enabled in the code)
+ *   OUI – bit 0 Should be set to 1
+ *               Setting to 0 will ignore OUI and data check
  *   Mac Address present – bit 1
  *   NSS – bit 2
  *   HT check – bit 3
@@ -12559,6 +12564,14 @@ enum hw_filter_mode {
  * This ini is used to specify which AP for which the connection has to be
  * made in 2x2 mode with HT capabilities only and not VHT.
  *
+ * Default OUIs: (All values in Hex)
+ * OUI 1 : 00904C
+ *   OUI data Len : 03
+ *   OUI Data : 0418BF
+ *   OUI data Mask: E0 - 11100000
+ *   Info Mask : 21 - Check for Band
+ *   Capabilities: 40 - Band == 2G
+ *
  * Related: None
  *
  * Supported Feature: Action OUIs
@@ -12568,7 +12581,51 @@ enum hw_filter_mode {
  * </ini>
  */
 #define CFG_ACTION_OUI_SWITCH_TO_11N_MODE_NAME    "gActionOUISwitchTo11nMode"
-#define CFG_ACTION_OUI_SWITCH_TO_11N_MODE_DEFAULT "00904C 03 FFFFBF 20 21 40"
+#define CFG_ACTION_OUI_SWITCH_TO_11N_MODE_DEFAULT "00904C 03 0418BF E0 21 40"
+
+/*
+ * <ini>
+ * gActionOUIConnect1x1with1TxRxChain - Used to specify action OUIs for
+ *                                      1x1 connection with one Tx/Rx Chain
+ * @Default:
+ * Note: User should strictly add new action OUIs at the end of this
+ * default value.
+ *
+ * Default OUIs: (All values in Hex)
+ * OUI 1 : 001018
+ *   OUI data Len : 06
+ *   OUI Data : 02FFF0040000
+ *   OUI data Mask: BC - 10111100
+ *   Info Mask : 21 - Check for Band
+ *   Capabilities: 40 - Band == 2G
+ *
+ * OUI 2 : 001018
+ *   OUI data Len : 06
+ *   OUI Data : 02FFF0050000
+ *   OUI data Mask: BC - 10111100
+ *   Info Mask : 21 - Check for Band
+ *   Capabilities: 40 - Band == 2G
+ *
+ * OUI 3 : 001018
+ *   OUI data Len : 06
+ *   OUI Data : 02FFF4050000
+ *   OUI data Mask: BC - 10111100
+ *   Info Mask : 21 - Check for Band
+ *   Capabilities: 40 - Band == 2G
+ *
+ * This ini is used to specify the AP OUIs with which only 1x1 connection
+ * with one Tx/Rx Chain is allowed.
+ *
+ * Related: gEnableActionOUI
+ *
+ * Supported Feature: Action OUIs
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_ACTION_OUI_CONNECT_1X1_WITH_1_CHAIN_NAME    "gActionOUIConnect1x1with1TxRxChain"
+#define CFG_ACTION_OUI_CONNECT_1X1_WITH_1_CHAIN_DEFAULT "001018 06 02FFF0040000 BC 21 40 001018 06 02FFF0050000 BC 21 40 001018 06 02FFF4050000 BC 21 40"
 
  /* End of action oui inis */
 
@@ -14710,6 +14767,23 @@ enum hw_filter_mode {
 
 /*
  * <ini>
+ * gDisableChannel - Enable/Disable to disable channels specified
+ *
+ * @Min: 0
+ * @Max: 1
+ * Default: 0
+ *
+ * Usage: Internal/External
+ *
+ * </ini>
+ */
+#define CFG_ENABLE_DISABLE_CHANNEL_NAME    "gDisableChannel"
+#define CFG_ENABLE_DISABLE_CHANNEL_MIN     (0)
+#define CFG_ENABLE_DISABLE_CHANNEL_MAX     (1)
+#define CFG_ENABLE_DISABLE_CHANNEL_DEFAULT (0)
+
+/*
+ * <ini>
  * channel_select_logic_conc - Set channel selection logic
  * for different concurrency combinations to DBS or inter band
  * MCC. Default is DBS for STA+STA and STA+P2P.
@@ -15744,6 +15818,7 @@ struct hdd_config {
 	uint8_t action_oui_cckm_1x1[MAX_ACTION_OUI_STRING_LEN];
 	uint8_t action_oui_ito_alternate[MAX_ACTION_OUI_STRING_LEN];
 	uint8_t action_oui_switch_to_11n[MAX_ACTION_OUI_STRING_LEN];
+	uint8_t action_oui_connect_1x1_with_1_chain[MAX_ACTION_OUI_STRING_LEN];
 	uint8_t rssi_weightage;
 	uint8_t ht_caps_weightage;
 	uint8_t vht_caps_weightage;
@@ -15811,6 +15886,7 @@ struct hdd_config {
 	bool enable_rtt_mac_randomization;
 	bool enable_ftopen;
 	bool is_unit_test_framework_enabled;
+	bool disable_channel;
 	uint32_t enable_secondary_rate;
 	bool roam_force_rssi_trigger;
 };
