@@ -14175,6 +14175,10 @@ wmi_get_action_oui_id(enum wmi_action_oui_id action_id,
 		*id = WMI_VENDOR_OUI_ACTION_SWITCH_TO_11N_MODE;
 		return true;
 
+	case WMI_ACTION_OUI_CONNECT_1x1_WITH_1_CHAIN:
+		*id = WMI_VENDOR_OUI_ACTION_CONNECTION_1X1_NUM_TX_RX_CHAINS_1;
+		return true;
+
 	default:
 		return false;
 	}
@@ -14189,7 +14193,10 @@ wmi_get_action_oui_id(enum wmi_action_oui_id action_id,
 static uint32_t
 wmi_get_action_oui_info_mask(uint32_t info_mask)
 {
-	uint32_t info_presence = WMI_BEACON_INFO_PRESENCE_OUI_EXT;
+	uint32_t info_presence = 0;
+
+	if (info_mask & WMI_ACTION_OUI_INFO_OUI)
+		info_presence |= WMI_BEACON_INFO_PRESENCE_OUI_EXT;
 
 	if (info_mask & WMI_ACTION_OUI_INFO_MAC_ADDRESS)
 		info_presence |= WMI_BEACON_INFO_PRESENCE_MAC_ADDRESS;
@@ -14285,8 +14292,11 @@ wmi_fill_oui_extensions_buffer(struct wmi_action_oui_extension *extension,
 		var_buf[0] = i;
 		var_buf++;
 
-		qdf_mem_copy(var_buf, extension->oui, extension->oui_length);
-		var_buf += extension->oui_length;
+		if (extension->oui_length) {
+			qdf_mem_copy(var_buf, extension->oui,
+				     extension->oui_length);
+			var_buf += extension->oui_length;
+		}
 
 		if (extension->data_length) {
 			qdf_mem_copy(var_buf, extension->data,
