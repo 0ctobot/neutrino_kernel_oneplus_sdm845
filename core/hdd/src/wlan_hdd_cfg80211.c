@@ -14645,17 +14645,6 @@ static int wlan_hdd_cfg80211_change_bss(struct wiphy *wiphy,
 	return ret;
 }
 
-/* FUNCTION: wlan_hdd_change_country_code_cd
- *  to wait for contry code completion
- */
-void *wlan_hdd_change_country_code_cb(void *pAdapter)
-{
-	hdd_adapter_t *call_back_pAdapter = pAdapter;
-
-	complete(&call_back_pAdapter->change_country_code);
-	return NULL;
-}
-
 /**
  * __wlan_hdd_cfg80211_change_iface() - change interface cfg80211 op
  * @wiphy: Pointer to the wiphy structure
@@ -14724,7 +14713,11 @@ static int __wlan_hdd_cfg80211_change_iface(struct wiphy *wiphy,
 	/* Reset the current device mode bit mask */
 	cds_clear_concurrency_mode(pAdapter->device_mode);
 
-	hdd_update_tdls_ct_and_teardown_links(pHddCtx);
+	if (!(pAdapter->device_mode == QDF_P2P_DEVICE_MODE &&
+	    type == NL80211_IFTYPE_STATION)) {
+		hdd_debug("Teardown tdls links and disable tdls in FW as new interface is coming up");
+		hdd_update_tdls_ct_and_teardown_links(pHddCtx);
+	}
 	if ((pAdapter->device_mode == QDF_STA_MODE) ||
 	    (pAdapter->device_mode == QDF_P2P_CLIENT_MODE) ||
 	    (pAdapter->device_mode == QDF_P2P_DEVICE_MODE) ||
