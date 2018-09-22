@@ -550,12 +550,104 @@ void wcd_mbhc_hs_elec_irq(struct wcd_mbhc *mbhc, int irq_type,
 }
 EXPORT_SYMBOL(wcd_mbhc_hs_elec_irq);
 
+/* liuhaituo@MM.Audio add new function to adapt headset volume */
+bool headset_imp_enable = false;
+EXPORT_SYMBOL_GPL(headset_imp_enable);
+
+static enum {
+    LOW_Z = 0,
+    HIGH_Z,
+    NONE_Z,
+}current_imp = NONE_Z;
+static int hp_volume_gain[3] ={80 /* LOW_Z_gain */,
+							   85 /* HIGH_Z_gain */,
+							   80 /* NONE_Z_gain */};
+static int original_imp = NONE_Z;
+#define HIGH_Z_THR	55 //The actual threshold impedance is 45, phone own impedance ~10
+#define HIGH_Z_MIN_THR	(HIGH_Z_THR - 3)
+#define HIGH_Z_MAX_THR	(HIGH_Z_THR + 3)
+
+static int adapt_headset_volume(struct wcd_mbhc *mbhc, int volume)
+{
+	int ret = 0;
+	struct snd_soc_codec *codec = mbhc->codec;
+	struct snd_soc_component component = codec->component;
+	int mask = (1 << (fls(40 - 84) -1)) - 1;
+	//because volume from -84 to 40;
+	volume -= 84;
+
+	/* set RX1 Mix Digital Volume */
+	ret = snd_soc_component_update_bits(&component, 0xb5c, mask, volume);
+	if (ret < 0)
+		return ret;
+
+	/* set RX2 Mix Digital Volume */
+	ret = snd_soc_component_update_bits(&component, 0xb70, mask, volume);
+	if (ret < 0)
+		return ret;
+
+	/* set RX1 Digital Volume */
+	ret = snd_soc_component_update_bits(&component, 0xb59, mask, volume);
+	if (ret < 0)
+		return ret;
+
+	/* set RX2 Digital Volume */
+	ret = snd_soc_component_update_bits(&component, 0xb6d, mask, volume);
+	if (ret < 0)
+		return ret;
+
+	pr_info("%s: set %d success!\n", __func__, volume);
+
+	return ret;
+}
+
+static void judge_headset_impedance(struct wcd_mbhc *mbhc)
+{
+	int ret = 0;
+	int left_z = mbhc->zl;
+	int right_z = mbhc->zr;
+
+	pr_err("%s: left_z is %d, right_z is %d\n", __func__, left_z, right_z);
+
+	if ((original_imp != NONE_Z) &&
+			(left_z > HIGH_Z_MIN_THR) && (left_z < HIGH_Z_MAX_THR) &&
+			(right_z > HIGH_Z_MIN_THR) && (right_z < HIGH_Z_MAX_THR)) {
+		current_imp = original_imp;
+	} else if ((left_z < HIGH_Z_THR) || (right_z < HIGH_Z_THR)) {
+		if (((left_z == 0) || (right_z == 0)) && (original_imp != NONE_Z))
+			current_imp = original_imp;
+		else {
+			current_imp = LOW_Z;
+			original_imp = current_imp;
+		}
+	} else {
+		current_imp = HIGH_Z;
+		original_imp = current_imp;
+	}
+
+	pr_err("%s: current_imp is %d, original_imp is %d\n",
+			__func__,
+			current_imp,
+			original_imp);
+
+	ret = adapt_headset_volume(mbhc, hp_volume_gain[current_imp]);
+	if (ret < 0)
+		pr_err("%s: set headset volume fail\n", __func__);
+
+	return;
+}
+
 void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 				enum snd_jack_types jack_type)
 {
 	struct snd_soc_codec *codec = mbhc->codec;
 	bool is_pa_on = false;
 	u8 fsm_en = 0;
+
+/* tony.liu@Multimedia.Audio,2017.12.21 add headset plug type detect */
+	unsigned int i = 0;
+	pr_debug("%s:-----start, name:%s\n", __func__, mbhc->wcd934x_edev->name);
+
 
 	WCD_MBHC_RSC_ASSERT_LOCKED(mbhc);
 
@@ -599,6 +691,19 @@ void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 		mbhc->zl = mbhc->zr = 0;
 		pr_debug("%s: Reporting removal %d(%x)\n", __func__,
 			 jack_type, mbhc->hph_status);
+
+/* tony.liu@Multimedia.Audio,2017.12.21 add headset plug type detect */
+		for (i = EXTCON_PLUG_TYPE_NONE; i <= EXTCON_PLUG_TYPE_GND_MIC_SWAP; i++)
+			extcon_set_state(mbhc->wcd934x_edev, i, 0); //clean state, not uevent
+
+        extcon_set_state_sync(mbhc->wcd934x_edev, EXTCON_PLUG_TYPE_NONE, 1);
+		pr_info("%s: remove: "  \
+		        "no connect = %d, headset = %d, headphone = %d, G_M_SWAP = %d\n",
+		        __func__,
+				extcon_get_state(mbhc->wcd934x_edev, 19),
+				extcon_get_state(mbhc->wcd934x_edev, 20),
+				extcon_get_state(mbhc->wcd934x_edev, 21),
+				extcon_get_state(mbhc->wcd934x_edev, 22));
 		wcd_mbhc_jack_report(mbhc, &mbhc->headset_jack,
 				mbhc->hph_status, WCD_MBHC_JACK_MASK);
 		wcd_mbhc_set_and_turnoff_hph_padac(mbhc);
@@ -718,6 +823,39 @@ void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 		}
 
 		mbhc->hph_status |= jack_type;
+/* liuhaituo@MM.Audio add new function to adapt headset volume */
+		if (headset_imp_enable)
+			judge_headset_impedance(mbhc);
+
+/* tony.liu@Multimedia.Audio,2017.12.21 add headset plug type detect */
+		pr_info("%s: current_plug: %d\n", __func__, mbhc->current_plug);
+
+		for (i = EXTCON_PLUG_TYPE_NONE; i <= EXTCON_PLUG_TYPE_GND_MIC_SWAP; i++)
+			extcon_set_state(mbhc->wcd934x_edev, i, 0);
+
+		switch(mbhc->current_plug) {
+			case MBHC_PLUG_TYPE_HEADPHONE:
+			case MBHC_PLUG_TYPE_HIGH_HPH:
+				extcon_set_state_sync(mbhc->wcd934x_edev, EXTCON_PLUG_TYPE_HEADPHONE, 1);  //21  headphone id	in extcon_edev
+				break;
+			case MBHC_PLUG_TYPE_GND_MIC_SWAP:
+				extcon_set_state_sync(mbhc->wcd934x_edev, EXTCON_PLUG_TYPE_GND_MIC_SWAP, 1);
+				break;
+			case MBHC_PLUG_TYPE_HEADSET:
+				extcon_set_state_sync(mbhc->wcd934x_edev, EXTCON_PLUG_TYPE_HEADSET, 1);
+				break;
+			default:
+				extcon_set_state_sync(mbhc->wcd934x_edev, EXTCON_PLUG_TYPE_NONE, 1);
+                break;
+		}
+
+		pr_info("%s: insert: "  \
+		        "no_connect = %d, headset = %d, headphone = %d, G_M_SWAP = %d\n",
+		        __func__,
+				extcon_get_state(mbhc->wcd934x_edev, 19),
+				extcon_get_state(mbhc->wcd934x_edev, 20),
+				extcon_get_state(mbhc->wcd934x_edev, 21),
+				extcon_get_state(mbhc->wcd934x_edev, 22));
 
 		pr_debug("%s: Reporting insertion %d(%x)\n", __func__,
 			 jack_type, mbhc->hph_status);
@@ -1040,8 +1178,9 @@ static void wcd_btn_lpress_fn(struct work_struct *work)
 
 	WCD_MBHC_REG_READ(WCD_MBHC_BTN_RESULT, btn_result);
 	if (mbhc->current_plug == MBHC_PLUG_TYPE_HEADSET) {
-		pr_debug("%s: Reporting long button press event, btn_result: %d\n",
+		pr_info("%s: Reporting long button press event, btn_result: %#x\n",
 			 __func__, btn_result);
+
 		wcd_mbhc_jack_report(mbhc, &mbhc->button_jack,
 				mbhc->buttons_pressed, mbhc->buttons_pressed);
 	}
@@ -1092,7 +1231,7 @@ static irqreturn_t wcd_mbhc_btn_press_handler(int irq, void *data)
 	msec_val = jiffies_to_msecs(jiffies - mbhc->jiffies_atreport);
 	pr_debug("%s: msec_val = %ld\n", __func__, msec_val);
 	if (msec_val < MBHC_BUTTON_PRESS_THRESHOLD_MIN) {
-		pr_debug("%s: Too short, ignore button press\n", __func__);
+		pr_err("%s: Too short, ignore button press\n", __func__);
 		goto done;
 	}
 
@@ -1118,6 +1257,7 @@ static irqreturn_t wcd_mbhc_btn_press_handler(int irq, void *data)
 		WARN(1, "Button pressed twice without release event\n");
 		mbhc->mbhc_cb->lock_sleep(mbhc, false);
 	}
+	pr_info("%s: Button %#x pressed!\n", __func__, mbhc->buttons_pressed);
 done:
 	pr_debug("%s: leave\n", __func__);
 	WCD_MBHC_RSC_UNLOCK(mbhc);
@@ -1139,7 +1279,7 @@ static irqreturn_t wcd_mbhc_release_handler(int irq, void *data)
 	if (mbhc->is_btn_press) {
 		mbhc->is_btn_press = false;
 	} else {
-		pr_debug("%s: This release is for fake btn press\n", __func__);
+		pr_err("%s: This release is for fake btn press\n", __func__);
 		goto exit;
 	}
 
@@ -1159,22 +1299,22 @@ static irqreturn_t wcd_mbhc_release_handler(int irq, void *data)
 	if (mbhc->buttons_pressed & WCD_MBHC_JACK_BUTTON_MASK) {
 		ret = wcd_cancel_btn_work(mbhc);
 		if (ret == 0) {
-			pr_debug("%s: Reporting long button release event\n",
+			pr_info("%s: Reporting long button release event\n",
 				 __func__);
 			wcd_mbhc_jack_report(mbhc, &mbhc->button_jack,
 					0, mbhc->buttons_pressed);
 		} else {
 			if (mbhc->in_swch_irq_handler) {
-				pr_debug("%s: Switch irq kicked in, ignore\n",
+				pr_err("%s: Switch irq kicked in, ignore\n",
 					__func__);
 			} else {
-				pr_debug("%s: Reporting btn press\n",
-					 __func__);
+				pr_info("%s: Reporting btn %#x press\n",
+					 __func__, mbhc->buttons_pressed);
 				wcd_mbhc_jack_report(mbhc,
 						     &mbhc->button_jack,
 						     mbhc->buttons_pressed,
 						     mbhc->buttons_pressed);
-				pr_debug("%s: Reporting btn release\n",
+				pr_info("%s: Reporting btn release\n",
 					 __func__);
 				wcd_mbhc_jack_report(mbhc,
 						&mbhc->button_jack,
