@@ -1867,16 +1867,6 @@ typedef struct sSirSmeSwitchChannelInd {
 	struct qdf_mac_addr bssid;      /* BSSID */
 } tSirSmeSwitchChannelInd, *tpSirSmeSwitchChannelInd;
 
-/* / Definition for Neighbor BSS indication */
-/* / MAC ---> */
-/* / MAC reports this each time a new I/BSS is detected */
-typedef struct sSirSmeNeighborBssInd {
-	uint16_t messageType;   /* eWNI_SME_NEIGHBOR_BSS_IND */
-	uint16_t length;
-	uint8_t sessionId;
-	tSirBssDescription bssDescription[1];
-} tSirSmeNeighborBssInd, *tpSirSmeNeighborBssInd;
-
 /* / Definition for MIC failure indication */
 /* / MAC ---> */
 /* / MAC reports this each time a MIC failure occures on Rx TKIP packet */
@@ -3726,6 +3716,8 @@ typedef struct sSirRoamOffloadScanReq {
 	struct rsn_caps rsn_caps;
 	struct wmi_11k_offload_params offload_11k_params;
 	uint32_t ho_delay_for_rx;
+	uint32_t roam_preauth_retry_count;
+	uint32_t roam_preauth_no_ack_timeout;
 	uint32_t min_delay_btw_roam_scans;
 	uint32_t roam_trigger_reason_bitmask;
 	bool roam_force_rssi_trigger;
