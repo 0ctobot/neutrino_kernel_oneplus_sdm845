@@ -403,6 +403,8 @@ typedef enum {
     WMI_PDEV_DMA_RING_CFG_REQ_CMDID,
     /* enable/disable Action frame response as HE TB PPDU */
     WMI_PDEV_HE_TB_ACTION_FRM_CMDID,
+    /** filter packet log based on MAC address */
+    WMI_PDEV_PKTLOG_FILTER_CMDID,
 
     /* VDEV (virtual device) specific commands */
     /** vdev create */
@@ -5367,6 +5369,14 @@ typedef enum {
      */
     WMI_PDEV_PARAM_USE_NOL,
 
+    /*
+     * Allow / Not Allow RU26 in any user's RU allocation field in UL OFDMA
+     * trigger frames sent by AP
+     *  1 - Allow RU26
+     *  0 - Do not allow RU26
+     */
+    WMI_PDEV_PARAM_UL_RU26_ALLOWED,
+
 } WMI_PDEV_PARAM;
 
 typedef struct {
@@ -5782,6 +5792,11 @@ typedef enum {
     WMI_PKTLOG_ENABLE_FORCE = 1, /* pktlog unconditionally enabled */
 } WMI_PKTLOG_ENABLE;
 
+typedef enum {
+    WMI_PKTLOG_FILTER_IN  = 0, /* capture only for the MAC addresses in pktlog_mac_addr_list*/
+    WMI_PKTLOG_FILTER_OUT = 1, /* capture for all MAC addresses except those in pktlog_mac_addr_list */
+} WMI_PKTLOG_FILTER_TYPE;
+
 typedef struct {
     A_UINT32 tlv_header; /** TLV tag and len; tag equals WMITLV_TAG_STRUC_wmi_pdev_pktlog_enable_cmd_fixed_param */
     /** pdev_id for identifying the MAC
@@ -5799,6 +5814,32 @@ typedef struct {
      */
     A_UINT32 pdev_id;
 } wmi_pdev_pktlog_disable_cmd_fixed_param;
+
+typedef struct {
+    /** TLV tag and len; tag equals
+    *  WMITLV_TAG_STRUC_wmi_pdev_pktlog_filter_info */
+    A_UINT32 tlv_header;
+    /** mac addr of the peer to be filtered */
+    wmi_mac_addr peer_mac_address;
+} wmi_pdev_pktlog_filter_info;
+
+typedef struct {
+    A_UINT32 tlv_header; /** TLV tag and len; tag equals WMITLV_TAG_STRUC_wmi_pdev_pktlog_filter_cmd_fixed_param */
+    /** pdev_id for identifying the MAC
+     * See macros starting with WMI_PDEV_ID_ for values.
+     */
+    A_UINT32 pdev_id;
+    /** 0 - disable filtering, 1 - enable filtering */
+    A_UINT32 enable;
+    A_UINT32 filter_type; /* WMI_PKTLOG_FILTER_TYPE */
+    A_UINT32 num_of_mac_addresses;
+    /* This TLV is followed by another TLV of array of structs
+     * wmi_pdev_pktlog_filter_info pdev_pktlog_filter_info[];
+     */
+} wmi_pdev_pktlog_filter_cmd_fixed_param;
+
+
+
 
 typedef struct {
     A_UINT32 tlv_header; /** TLV tag and len; tag equals WMITLV_TAG_STRUC_wmi_mib_stats_enable_cmd_fixed_param */
@@ -9020,6 +9061,13 @@ typedef enum {
 
     /** Update dot11ObssNbruToleranceTime in fw. Param value: seconds */
     WMI_VDEV_PARAM_UPDATE_OBSS_RU_TOLERANCE_TIME,         /* 0x90 */
+
+    /** Parameter used when MTU size is sent by the host
+     * In particular, this configuration message is used for cases where the
+     * encapsulation header results in a larger max frame size than the
+     * typical 802.3 + SNAP/LLC frame.
+     */
+    WMI_VDEV_PARAM_MAX_MTU_SIZE,                          /* 0x91 */
 
 
     /*=== ADD NEW VDEV PARAM TYPES ABOVE THIS LINE ===
@@ -21196,7 +21244,22 @@ typedef enum wmi_coex_config_type {
     WMI_COEX_CONFIG_COEX_ENABLE_MCC_TDM = 22, /* config disable/enable COEX TDM for MCC */
     WMI_COEX_CONFIG_LOWRSSI_A2DPOPP_TDM = 23, /* config interval (ms units) (arg1 BT, arg2 WLAN) for STA + A2dp + OPP + LOWRSSI */
     WMI_COEX_CONFIG_BTC_MODE            = 24, /* config BTC mode, arg1 mode: 0 TDD/1 FDD/2 Hybrid*/
-    WMI_COEX_CONFIG_ANTENNA_ISOLATION   = 25, /* config isolation between BT and WLAN antenna, arg1 isolation in db*/
+    WMI_COEX_CONFIG_ANTENNA_ISOLATION   = 25, /* config isolation between BT and WLAN chains
+                                               * The arguments are interpreted differently
+                                               * depending on whether the target suppports
+                                               * WMI_SERVICE_COEX_SUPPORT_UNEQUAL_ISOLATION
+                                               * If (not COEX_SUPPORT_UNEQUAL_ISOLATION) or arg2 == 0:
+                                               *     arg1 => isolation between BT and WLAN chains,
+                                               *             dB units,
+                                               *             same isolation for all chains
+                                               * Else:
+                                               *     arg1 bits  7:0  - chain 0 isolation, in dB
+                                               *     arg1 bits 15:8  - chain 1 isolation, in dB
+                                               *     arg1 bits 23:16 - chain 2 isolation, in dB
+                                               *     arg1 bits 31:24 - chain 3 isolation, in dB
+                                               * arg2 - 0 => Equal isolation b/w BT and each WLAN chain (default)
+                                               *        1 => Different isolation b/w BT and each WLAN chain
+                                               */
     WMI_COEX_CONFIG_BT_LOW_RSSI_THRESHOLD = 26,/*config BT low rssi threshold (dbm units)*/
     WMI_COEX_CONFIG_BT_INTERFERENCE_LEVEL = 27,/*config bt interference level (dbm units)
                                                  arg1 low - lower limit
@@ -22544,6 +22607,7 @@ static INLINE A_UINT8 *wmi_id_to_name(A_UINT32 wmi_command)
         WMI_RETURN_STRING(WMI_VDEV_CHAINMASK_CONFIG_CMDID);
         WMI_RETURN_STRING(WMI_VDEV_BCN_OFFLOAD_QUIET_CONFIG_CMDID);
         WMI_RETURN_STRING(WMI_NDP_CMDID);
+        WMI_RETURN_STRING(WMI_PDEV_PKTLOG_FILTER_CMDID);
     }
 
     return "Invalid WMI cmd";
