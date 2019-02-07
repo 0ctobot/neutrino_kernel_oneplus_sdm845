@@ -60,6 +60,8 @@
 #define WCD9XXX_PAGE_NUM(reg)    (((reg) >> 8) & 0xff)
 #define WCD9XXX_PAGE_SIZE 256
 
+extern bool fsa4480_enable;
+
 struct wcd9xxx_i2c {
 	struct i2c_client *client;
 	struct i2c_msg xfer_msg[2];
@@ -1224,7 +1226,6 @@ static int wcd9xxx_slim_probe(struct slim_device *slim)
 	const struct slim_device_id *device_id;
 	int ret = 0;
 	int intf_type;
-
 	intf_type = wcd9xxx_get_intf_type();
 
 	wcd9xxx = devm_kzalloc(&slim->dev, sizeof(struct wcd9xxx),
