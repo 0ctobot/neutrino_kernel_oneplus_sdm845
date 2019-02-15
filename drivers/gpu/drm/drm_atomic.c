@@ -31,6 +31,8 @@
 #include <drm/drm_mode.h>
 #include <drm/drm_plane_helper.h>
 #include <linux/sync_file.h>
+#include <linux/cpu_input_boost.h>
+#include <linux/devfreq_boost.h>
 
 #include "drm_crtc_internal.h"
 
@@ -1904,6 +1906,11 @@ int drm_mode_atomic_ioctl(struct drm_device *dev,
 			(arg->flags & DRM_MODE_PAGE_FLIP_EVENT))
 		return -EINVAL;
 
+	if (!(arg->flags & DRM_MODE_ATOMIC_TEST_ONLY)) {
+		cpu_input_boost_kick();
+		devfreq_boost_kick(DEVFREQ_MSM_CPUBW);
+	}
+
 	drm_modeset_acquire_init(&ctx, 0);
 
 	state = drm_atomic_state_alloc(dev);
@@ -2006,6 +2013,9 @@ retry:
 		ret = drm_atomic_check_only(state);
 	} else {
 		if (!dev->bridges_enabled) {
+			cpu_input_boost_kick_max(CONFIG_WAKE_BOOST_DURATION_MS);
+			devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW,
+				CONFIG_DEVFREQ_WAKE_BOOST_DURATION_MS);
 			kthread_queue_work(&dev->bridge_enable_worker,
 					   &dev->bridge_enable_work);
 			dev->bridges_enabled = true;
