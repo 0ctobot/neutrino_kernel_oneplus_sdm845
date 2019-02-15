@@ -873,7 +873,7 @@ int icm20602_init_device(struct inv_icm20602_state *st)
 	/* buffer malloc */
 	package_count = config->fifo_waterlevel / ICM20602_PACKAGE_SIZE;
 
-	st->buf = kzalloc(config->fifo_waterlevel * 2, GFP_ATOMIC);
+	st->buf = kcalloc(config->fifo_waterlevel, 2, GFP_ATOMIC);
 	if (!st->buf)
 		return -ENOMEM;
 

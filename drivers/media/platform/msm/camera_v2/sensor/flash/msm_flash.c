@@ -222,8 +222,9 @@ static int32_t msm_flash_i2c_init(
 			power_setting_array32->size_down;
 
 		flash_ctrl->power_setting_array.power_down_setting =
-			kzalloc(sizeof(struct msm_sensor_power_setting)*
-			flash_ctrl->power_setting_array.size_down, GFP_KERNEL);
+			kcalloc(flash_ctrl->power_setting_array.size_down,
+				sizeof(struct msm_sensor_power_setting),
+				GFP_KERNEL);
 		if (!flash_ctrl->power_setting_array.power_down_setting)
 			return -ENOMEM;
 		if (copy_from_user(
@@ -237,8 +238,9 @@ static int32_t msm_flash_i2c_init(
 		}
 
 		flash_ctrl->power_setting_array.power_setting =
-			kzalloc(sizeof(struct msm_sensor_power_setting)*
-			flash_ctrl->power_setting_array.size, GFP_KERNEL);
+			kcalloc(flash_ctrl->power_setting_array.size,
+				sizeof(struct msm_sensor_power_setting),
+				GFP_KERNEL);
 		if (!flash_ctrl->power_setting_array.power_setting)
 			return -ENOMEM;
 		if (copy_from_user(

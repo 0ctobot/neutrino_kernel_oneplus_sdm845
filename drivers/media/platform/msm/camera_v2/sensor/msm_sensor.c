@@ -493,8 +493,9 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 			break;
 		}
 
-		reg_setting = kzalloc(conf_array.size *
-			(sizeof(struct msm_camera_i2c_reg_array)), GFP_KERNEL);
+		reg_setting = kcalloc(conf_array.size,
+				      sizeof(struct msm_camera_i2c_reg_array),
+				      GFP_KERNEL);
 		if (!reg_setting) {
 			rc = -ENOMEM;
 			break;
@@ -655,8 +656,9 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 			break;
 		}
 
-		reg_setting = kzalloc(write_config.conf_array.size *
-			(sizeof(struct msm_camera_i2c_reg_array)), GFP_KERNEL);
+		reg_setting = kcalloc(write_config.conf_array.size,
+				      sizeof(struct msm_camera_i2c_reg_array),
+				      GFP_KERNEL);
 		if (!reg_setting) {
 			rc = -ENOMEM;
 			break;
@@ -753,9 +755,9 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 			break;
 		}
 
-		reg_setting = kzalloc(conf_array.size *
-			(sizeof(struct msm_camera_i2c_seq_reg_array)),
-			GFP_KERNEL);
+		reg_setting = kcalloc(conf_array.size,
+				      sizeof(struct msm_camera_i2c_seq_reg_array),
+				      GFP_KERNEL);
 		if (!reg_setting) {
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 			rc = -ENOMEM;
@@ -862,8 +864,9 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 			rc = -EFAULT;
 			break;
 		}
-		stop_setting->reg_setting = kzalloc(stop_setting->size *
-			(sizeof(struct msm_camera_i2c_reg_array)), GFP_KERNEL);
+		stop_setting->reg_setting = kcalloc(stop_setting->size,
+						    sizeof(struct msm_camera_i2c_reg_array),
+						    GFP_KERNEL);
 		if (!stop_setting->reg_setting) {
 			rc = -ENOMEM;
 			break;
@@ -1020,8 +1023,9 @@ int msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void *argp)
 			break;
 		}
 
-		reg_setting = kzalloc(conf_array.size *
-			(sizeof(struct msm_camera_i2c_reg_array)), GFP_KERNEL);
+		reg_setting = kcalloc(conf_array.size,
+				      sizeof(struct msm_camera_i2c_reg_array),
+				      GFP_KERNEL);
 		if (!reg_setting) {
 			rc = -ENOMEM;
 			break;
@@ -1158,8 +1162,9 @@ int msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void *argp)
 			break;
 		}
 
-		reg_setting = kzalloc(write_config.conf_array.size *
-			(sizeof(struct msm_camera_i2c_reg_array)), GFP_KERNEL);
+		reg_setting = kcalloc(write_config.conf_array.size,
+				      sizeof(struct msm_camera_i2c_reg_array),
+				      GFP_KERNEL);
 		if (!reg_setting) {
 			rc = -ENOMEM;
 			break;
@@ -1245,9 +1250,9 @@ int msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void *argp)
 			break;
 		}
 
-		reg_setting = kzalloc(conf_array.size *
-			(sizeof(struct msm_camera_i2c_seq_reg_array)),
-			GFP_KERNEL);
+		reg_setting = kcalloc(conf_array.size,
+				      sizeof(struct msm_camera_i2c_seq_reg_array),
+				      GFP_KERNEL);
 		if (!reg_setting) {
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 			rc = -ENOMEM;
@@ -1352,8 +1357,9 @@ int msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void *argp)
 			rc = -EFAULT;
 			break;
 		}
-		stop_setting->reg_setting = kzalloc(stop_setting->size *
-			(sizeof(struct msm_camera_i2c_reg_array)), GFP_KERNEL);
+		stop_setting->reg_setting = kcalloc(stop_setting->size,
+						    sizeof(struct msm_camera_i2c_reg_array),
+						    GFP_KERNEL);
 		if (!stop_setting->reg_setting) {
 			rc = -ENOMEM;
 			break;

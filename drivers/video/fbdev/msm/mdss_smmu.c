@@ -86,8 +86,8 @@ static int mdss_smmu_util_parse_dt_clock(struct platform_device *pdev,
 	}
 
 	mp->num_clk = num_clk;
-	mp->clk_config = devm_kzalloc(&pdev->dev,
-			sizeof(struct mdss_clk) * mp->num_clk, GFP_KERNEL);
+	mp->clk_config = devm_kcalloc(&pdev->dev,
+			mp->num_clk, sizeof(struct mdss_clk), GFP_KERNEL);
 	if (!mp->clk_config) {
 		rc = -ENOMEM;
 		mp->num_clk = 0;
@@ -566,7 +566,7 @@ static struct scatterlist *sg_clone(struct scatterlist *orig_sgl, u64 len,
 	if (padding)
 		nents += 2;
 
-	head = vmalloc(nents * sizeof(struct scatterlist));
+	head = vmalloc(array_size(nents, sizeof(struct scatterlist)));
 	if (!head)
 		return ERR_PTR(-ENOMEM);
 

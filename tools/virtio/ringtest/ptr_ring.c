@@ -42,7 +42,7 @@ static inline void *kmalloc_array(size_t n, size_t size, gfp_t flags)
 {
 	if (size != 0 && n > SIZE_MAX / size)
 		return NULL;
-	return kmalloc(n * size, flags);
+	return kmalloc_array(size, n, flags);
 }
 
 static inline void *kcalloc(size_t n, size_t size, gfp_t flags)
