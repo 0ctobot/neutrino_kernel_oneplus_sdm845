@@ -1874,45 +1874,44 @@ static void sap_mark_dfs_channels(ptSapContext sapContext, uint8_t *channels,
 	nRegDomainDfsChannels =
 		pMac->sap.SapDfsInfo.numCurrentRegDomainDfsChannels;
 
-	for (i = 0; i < numChannels; i++) {
-		for (j = 0; j <= nRegDomainDfsChannels; j++) {
-			if (!(psapDfsChannelNolList[j].dfs_channel_number ==
-					channels[i]))
-				continue;
+	for (i = 0, j = 0; i < numChannels &&
+		j <= nRegDomainDfsChannels; i++, j++) {
+		if (!(psapDfsChannelNolList[j].dfs_channel_number ==
+				channels[i]))
+			continue;
 
-			time_when_radar_found =
-				psapDfsChannelNolList[j].radar_found_timestamp;
-			time_elapsed_since_last_radar = time -
-						time_when_radar_found;
-			/*
-			 * If channel is already in NOL, don't update it again.
-			 * This is useful when marking bonding channels which
-			 * are already unavailable.
-			 */
-			if ((psapDfsChannelNolList[j].radar_status_flag ==
-				eSAP_DFS_CHANNEL_UNAVAILABLE) &&
-				(time_elapsed_since_last_radar <
-					SAP_DFS_NON_OCCUPANCY_PERIOD)) {
-				QDF_TRACE(QDF_MODULE_ID_SAP,
-						QDF_TRACE_LEVEL_INFO_HIGH,
-						FL("Channel=%d already in NOL"),
-						channels[i]);
-				continue;
-			}
-			/*
-			 * Capture the Radar Found timestamp on the
-			 * Current Channel in ms.
-			 */
-			psapDfsChannelNolList[j].radar_found_timestamp = time;
-			/* Mark the Channel to be unavailble for next 30 mins */
-			psapDfsChannelNolList[j].radar_status_flag =
-				eSAP_DFS_CHANNEL_UNAVAILABLE;
-
+		time_when_radar_found =
+			psapDfsChannelNolList[j].radar_found_timestamp;
+		time_elapsed_since_last_radar = time -
+					time_when_radar_found;
+		/*
+		 * If channel is already in NOL, don't update it again.
+		 * This is useful when marking bonding channels which
+		 * are already unavailable.
+		 */
+		if ((psapDfsChannelNolList[j].radar_status_flag ==
+			eSAP_DFS_CHANNEL_UNAVAILABLE) &&
+			(time_elapsed_since_last_radar <
+				SAP_DFS_NON_OCCUPANCY_PERIOD)) {
 			QDF_TRACE(QDF_MODULE_ID_SAP,
-				QDF_TRACE_LEVEL_INFO_HIGH,
-				FL("Channel=%d Added to NOL LIST"),
-				channels[i]);
+					QDF_TRACE_LEVEL_INFO_HIGH,
+					FL("Channel=%d already in NOL"),
+					channels[i]);
+			continue;
 		}
+		/*
+		 * Capture the Radar Found timestamp on the
+		 * Current Channel in ms.
+		 */
+		psapDfsChannelNolList[j].radar_found_timestamp = time;
+		/* Mark the Channel to be unavailble for next 30 mins */
+		psapDfsChannelNolList[j].radar_status_flag =
+			eSAP_DFS_CHANNEL_UNAVAILABLE;
+
+		QDF_TRACE(QDF_MODULE_ID_SAP,
+			QDF_TRACE_LEVEL_INFO_HIGH,
+			FL("Channel=%d Added to NOL LIST"),
+			channels[i]);
 	}
 }
 

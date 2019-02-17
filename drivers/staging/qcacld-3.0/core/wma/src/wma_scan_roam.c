@@ -5781,7 +5781,8 @@ QDF_STATUS wma_start_extscan(tp_wma_handle wma,
 	params->configuration_flags = pstart->configuration_flags;
 	params->extscan_adaptive_dwell_mode =
 			pstart->extscan_adaptive_dwell_mode;
-	for (i = 0; i < WMI_WLAN_EXTSCAN_MAX_BUCKETS; i++) {
+	for (i = 0, j = 0; i < WMI_WLAN_EXTSCAN_MAX_BUCKETS &&
+		j < WLAN_EXTSCAN_MAX_CHANNELS; i++, j++) {
 		params->buckets[i].bucket = pstart->buckets[i].bucket;
 		params->buckets[i].band =
 			(enum wmi_wifi_band) pstart->buckets[i].band;
@@ -5800,16 +5801,14 @@ QDF_STATUS wma_start_extscan(tp_wma_handle wma,
 			pstart->buckets[i].max_dwell_time_active;
 		params->buckets[i].max_dwell_time_passive =
 			pstart->buckets[i].max_dwell_time_passive;
-		for (j = 0; j < WLAN_EXTSCAN_MAX_CHANNELS; j++) {
-			params->buckets[i].channels[j].channel =
-				pstart->buckets[i].channels[j].channel;
-			params->buckets[i].channels[j].dwellTimeMs =
-				pstart->buckets[i].channels[j].dwellTimeMs;
-			params->buckets[i].channels[j].passive =
-				pstart->buckets[i].channels[j].passive;
-			params->buckets[i].channels[j].chnlClass =
-				pstart->buckets[i].channels[j].chnlClass;
-		}
+		params->buckets[i].channels[j].channel =
+			pstart->buckets[i].channels[j].channel;
+		params->buckets[i].channels[j].dwellTimeMs =
+			pstart->buckets[i].channels[j].dwellTimeMs;
+		params->buckets[i].channels[j].passive =
+			pstart->buckets[i].channels[j].passive;
+		params->buckets[i].channels[j].chnlClass =
+			pstart->buckets[i].channels[j].chnlClass;
 	}
 
 	status = wmi_unified_start_extscan_cmd(wma->wmi_handle,
