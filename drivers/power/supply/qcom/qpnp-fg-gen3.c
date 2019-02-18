@@ -4112,6 +4112,9 @@ static int fg_psy_get_property(struct power_supply *psy,
 		pval->intval = chip->bp.float_volt_uv;
 		break;
 	case POWER_SUPPLY_PROP_CYCLE_COUNT:
+		pval->intval = 0;
+		break;
+	case POWER_SUPPLY_PROP_CYCLE_COUNTS:
 		pval->strval = fg_get_cycle_count(chip);
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_NOW_RAW:
@@ -4388,7 +4391,7 @@ static enum power_supply_property fg_psy_props[] = {
 	POWER_SUPPLY_PROP_BATTERY_TYPE,
 	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
 	POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN,
-	POWER_SUPPLY_PROP_CYCLE_COUNT,
+	POWER_SUPPLY_PROP_CYCLE_COUNTS,
 	POWER_SUPPLY_PROP_CHARGE_NOW_RAW,
 	POWER_SUPPLY_PROP_CHARGE_NOW,
 	POWER_SUPPLY_PROP_CHARGE_FULL,
