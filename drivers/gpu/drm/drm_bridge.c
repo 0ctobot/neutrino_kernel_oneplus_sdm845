@@ -24,6 +24,8 @@
 #include <linux/err.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
+#include <linux/cpu_input_boost.h>
+#include <linux/devfreq_boost.h>
 
 #include <drm/drm_bridge.h>
 #include <drm/drmP.h>
@@ -242,7 +244,7 @@ void drm_bridge_disable(struct drm_bridge *bridge)
 	if (bridge->funcs->disable)
 		bridge->funcs->disable(bridge);
 
-	bridge->dev->bridges_enabled = false;
+	atomic_set(&bridge->dev->bridges_enabled, 0);
 }
 EXPORT_SYMBOL(drm_bridge_disable);
 
@@ -300,7 +302,7 @@ void __drm_bridge_pre_enable(struct drm_bridge *bridge)
 	if (!bridge)
 		return;
 
-	drm_bridge_pre_enable(bridge->next);
+	__drm_bridge_pre_enable(bridge->next);
 
 	if (bridge->funcs->pre_enable)
 		bridge->funcs->pre_enable(bridge);
@@ -322,6 +324,7 @@ void drm_bridge_pre_enable(struct drm_bridge *bridge)
 	if (!bridge)
 		return;
 
+	drm_bridge_enable_all(bridge->dev);
 	kthread_flush_work(&bridge->dev->bridge_enable_work);
 }
 EXPORT_SYMBOL(drm_bridge_pre_enable);
@@ -334,7 +337,7 @@ void __drm_bridge_enable(struct drm_bridge *bridge)
 	if (bridge->funcs->enable)
 		bridge->funcs->enable(bridge);
 
-	drm_bridge_enable(bridge->next);
+	__drm_bridge_enable(bridge->next);
 }
 
 /**
@@ -353,9 +356,22 @@ void drm_bridge_enable(struct drm_bridge *bridge)
 	if (!bridge)
 		return;
 
+	drm_bridge_enable_all(bridge->dev);
 	kthread_flush_work(&bridge->dev->bridge_enable_work);
 }
 EXPORT_SYMBOL(drm_bridge_enable);
+
+void drm_bridge_enable_all(struct drm_device *dev)
+{
+	if (atomic_cmpxchg(&dev->bridges_enabled, 0, 1))
+		return;
+
+	cpu_input_boost_kick_max(CONFIG_WAKE_BOOST_DURATION_MS);
+	devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW,
+			       CONFIG_DEVFREQ_WAKE_BOOST_DURATION_MS);
+	kthread_queue_work(&dev->bridge_enable_worker,
+			   &dev->bridge_enable_work);
+}
 
 #ifdef CONFIG_OF
 /**

@@ -898,7 +898,7 @@ struct drm_device {
 	struct task_struct *bridge_enable_task;
 	struct kthread_worker bridge_enable_worker;
 	struct kthread_work bridge_enable_work;
-	bool bridges_enabled;
+	atomic_t bridges_enabled;
 };
 
 #include <drm/drm_irq.h>
