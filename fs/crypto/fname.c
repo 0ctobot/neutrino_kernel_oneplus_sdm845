@@ -70,9 +70,8 @@ int fname_encrypt(struct inode *inode, const struct qstr *iname,
 	res = crypto_wait_req(crypto_skcipher_encrypt(req), &wait);
 	skcipher_request_free(req);
 	if (res < 0) {
-		fscrypt_err(inode->i_sb,
-			    "Filename encryption failed for inode %lu: %d",
-			    inode->i_ino, res);
+		printk_ratelimited(KERN_ERR
+				"%s: Error (error code %d)\n", __func__, res);
 		return res;
 	}
 
@@ -93,9 +92,15 @@ static int fname_decrypt(struct inode *inode,
 	struct skcipher_request *req = NULL;
 	DECLARE_CRYPTO_WAIT(wait);
 	struct scatterlist src_sg, dst_sg;
-	struct crypto_skcipher *tfm = inode->i_crypt_info->ci_ctfm;
+	struct fscrypt_info *ci = inode->i_crypt_info;
+	struct crypto_skcipher *tfm = ci->ci_ctfm;
 	int res = 0;
 	char iv[FS_CRYPTO_BLOCK_SIZE];
+	unsigned lim;
+
+	lim = inode->i_sb->s_cop->max_namelen(inode);
+	if (iname->len <= 0 || iname->len > lim)
+		return -EIO;
 
 	/* Allocate request */
 	req = skcipher_request_alloc(tfm, GFP_NOFS);
@@ -115,9 +120,8 @@ static int fname_decrypt(struct inode *inode,
 	res = crypto_wait_req(crypto_skcipher_decrypt(req), &wait);
 	skcipher_request_free(req);
 	if (res < 0) {
-		fscrypt_err(inode->i_sb,
-			    "Filename decryption failed for inode %lu: %d",
-			    inode->i_ino, res);
+		printk_ratelimited(KERN_ERR
+				"%s: Error (error code %d)\n", __func__, res);
 		return res;
 	}
 
