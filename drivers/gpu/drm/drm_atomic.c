@@ -2012,14 +2012,7 @@ retry:
 		 */
 		ret = drm_atomic_check_only(state);
 	} else {
-		if (!dev->bridges_enabled) {
-			cpu_input_boost_kick_max(CONFIG_WAKE_BOOST_DURATION_MS);
-			devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW,
-				CONFIG_DEVFREQ_WAKE_BOOST_DURATION_MS);
-			kthread_queue_work(&dev->bridge_enable_worker,
-					   &dev->bridge_enable_work);
-			dev->bridges_enabled = true;
-		}
+		drm_bridge_enable_all(dev);
 
 		if (arg->flags & DRM_MODE_ATOMIC_NONBLOCK)
 			ret = drm_atomic_nonblocking_commit(state);
