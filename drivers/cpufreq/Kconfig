@@ -292,6 +292,15 @@ config INPUT_BOOST_FREQ_PERF
 	help
 	  Input boost frequency for the performance CPU cluster.
 
+config INPUT_STUNE_BOOST
+	int "Input SchedTune boost value for top-app"
+	depends on DYNAMIC_STUNE_BOOST
+	default "15"
+	help
+	  SchedTune boost value for input boost. This alters the perceived load
+	  of process groups in order to bias core selection as well as CPU
+	  frequency selection. A value of 0 disables this functionality.
+
 config REMOVE_INPUT_BOOST_FREQ_LP
 	int "Low-power cluster return frequency"
 	default "0"
@@ -311,6 +320,15 @@ config REMOVE_INPUT_BOOST_FREQ_PERF
 	  use cpuinfo.min_freq. In case the device has some kind of quirk
 	  of using a higher than cpuinfo.min_freq (e.g. OnePlus 5/5T/6)
 	  this frequency will be used.
+
+config MAX_STUNE_BOOST
+	int "Max SchedTune boost value for top-app"
+	depends on DYNAMIC_STUNE_BOOST
+	default "100"
+	help
+	  SchedTune boost value for max boost. This alters the perceived load
+	  of process groups in order to bias core selection as well as CPU
+	  frequency selection. A value of 0 disables this functionality.
 
 endif
 
