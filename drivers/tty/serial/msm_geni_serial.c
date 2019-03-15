@@ -2172,6 +2172,10 @@ exit_geni_serial_earlyconsetup:
 OF_EARLYCON_DECLARE(msm_geni_serial, "qcom,msm-geni-console",
 		msm_geni_serial_earlycon_setup);
 
+static int console_register(struct uart_driver *drv)
+{
+	return uart_register_driver(drv);
+}
 static void console_unregister(struct uart_driver *drv)
 {
 	uart_unregister_driver(drv);
@@ -2195,6 +2199,11 @@ static struct uart_driver msm_geni_console_driver = {
 	.cons = &cons_ops,
 };
 #else
+static int console_register(struct uart_driver *drv)
+{
+	return 0;
+}
+
 static void console_unregister(struct uart_driver *drv)
 {
 }
