@@ -14,6 +14,8 @@
 #include <linux/of.h>
 #include <linux/sched/core_ctl.h>
 #include <trace/events/sched.h>
+#include <linux/cpu_input_boost.h>
+#include <linux/devfreq_boost.h>
 
 /*
  * Scheduler boost is a mechanism to temporarily place tasks on CPUs
@@ -121,9 +123,11 @@ static void _sched_set_boost(int old_val, int type)
 {
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
-	if (type > 0)
+	if (type > 0) {
 		do_stune_sched_boost("top-app", &boost_slot);
-	else
+		cpu_input_boost_kick();
+		devfreq_boost_kick(DEVFREQ_MSM_CPUBW);
+	} else
 		reset_stune_boost("top-app", boost_slot);
 #endif // CONFIG_DYNAMIC_STUNE_BOOST
 
