@@ -4024,6 +4024,27 @@ void cpufreq_remove_update_util_hook(int cpu);
 int do_stune_boost(char *st_name, int boost, int *slot);
 int do_stune_sched_boost(char *st_name, int *slot);
 int reset_stune_boost(char *st_name, int slot);
+int set_stune_boost(char *st_name, int boost, int *boost_default);
+#else /* !CONFIG_DYNAMIC_STUNE_BOOST */
+static inline int do_stune_boost(char *st_name, int boost, int *slot)
+{
+	return 0;
+}
+
+static inline int do_stune_sched_boost(char *st_name, int *slot)
+{
+	return 0;
+}
+
+static inline int reset_stune_boost(char *st_name, int slot)
+{
+	return 0;
+}
+
+static inline int set_stune_boost(char *st_name, int boost, int *boost_default)
+{
+	return 0;
+}
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 extern DEFINE_PER_CPU_READ_MOSTLY(int, sched_load_boost);

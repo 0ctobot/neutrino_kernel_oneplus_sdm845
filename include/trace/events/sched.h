@@ -1416,7 +1416,7 @@ TRACE_EVENT(sched_contrib_scale_f,
 extern unsigned int sysctl_sched_use_walt_cpu_util;
 extern unsigned int sysctl_sched_use_walt_task_util;
 extern unsigned int sched_ravg_window;
-extern unsigned int walt_disabled;
+extern bool walt_disabled;
 #endif
 
 /*
@@ -1564,9 +1564,9 @@ TRACE_EVENT(sched_boost_cpu,
 TRACE_EVENT(sched_tune_tasks_update,
 
 	TP_PROTO(struct task_struct *tsk, int cpu, int tasks, int idx,
-		int boost, int max_boost, u64 group_ts),
+		int boost, int max_boost),
 
-	TP_ARGS(tsk, cpu, tasks, idx, boost, max_boost, group_ts),
+	TP_ARGS(tsk, cpu, tasks, idx, boost, max_boost),
 
 	TP_STRUCT__entry(
 		__array( char,	comm,	TASK_COMM_LEN	)
@@ -1576,7 +1576,6 @@ TRACE_EVENT(sched_tune_tasks_update,
 		__field( int,		idx		)
 		__field( int,		boost		)
 		__field( int,		max_boost	)
-		__field( u64,		group_ts	)
 	),
 
 	TP_fast_assign(
@@ -1587,15 +1586,13 @@ TRACE_EVENT(sched_tune_tasks_update,
 		__entry->idx 		= idx;
 		__entry->boost		= boost;
 		__entry->max_boost	= max_boost;
-		__entry->group_ts	= group_ts;
 	),
 
 	TP_printk("pid=%d comm=%s "
-			"cpu=%d tasks=%d idx=%d boost=%d max_boost=%d timeout=%llu",
+			"cpu=%d tasks=%d idx=%d boost=%d max_boost=%d",
 		__entry->pid, __entry->comm,
 		__entry->cpu, __entry->tasks, __entry->idx,
-		__entry->boost, __entry->max_boost,
-		__entry->group_ts)
+		__entry->boost, __entry->max_boost)
 );
 
 /*

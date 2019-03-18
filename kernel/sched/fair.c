@@ -6960,7 +6960,7 @@ static inline int find_best_target(struct task_struct *p, int *backup_cpu,
 	int best_idle_cpu = -1;
 	int target_cpu = -1;
 	int cpu, i;
-	long __maybe_unused spare_cap, most_spare_cap = 0;
+	long most_spare_cap = 0;
 	int most_spare_cap_cpu = -1;
 	unsigned int active_cpus_count = 0;
 	int isolated_candidate = -1;
@@ -9977,6 +9977,17 @@ static struct rq *find_busiest_queue(struct lb_env *env,
 			continue;
 
 		capacity = capacity_of(i);
+
+		/*
+		 * For ASYM_CPUCAPACITY domains, don't pick a cpu that could
+		 * eventually lead to active_balancing high->low capacity.
+		 * Higher per-cpu capacity is considered better than balancing
+		 * average load.
+		 */
+		if (env->sd->flags & SD_ASYM_CPUCAPACITY &&
+		    capacity_of(env->dst_cpu) < capacity &&
+		    rq->nr_running == 1)
+			continue;
 
 		wl = weighted_cpuload(i);
 
