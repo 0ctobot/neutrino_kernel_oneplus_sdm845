@@ -164,8 +164,12 @@ int fscrypt_do_page_crypto(const struct inode *inode, fscrypt_direction_t rw,
 	fscrypt_generate_iv(&iv, lblk_num, ci);
 
 	req = skcipher_request_alloc(tfm, gfp_flags);
-	if (!req)
+	if (!req) {
+		printk_ratelimited(KERN_ERR
+				"%s: crypto_request_alloc() failed\n",
+				__func__);
 		return -ENOMEM;
+	}
 
 	skcipher_request_set_callback(
 		req, CRYPTO_TFM_REQ_MAY_BACKLOG | CRYPTO_TFM_REQ_MAY_SLEEP,

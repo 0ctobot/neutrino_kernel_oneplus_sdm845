@@ -59,8 +59,11 @@ int fname_encrypt(struct inode *inode, const struct qstr *iname,
 
 	/* Set up the encryption request */
 	req = skcipher_request_alloc(tfm, GFP_NOFS);
-	if (!req)
+	if (!req) {
+		printk_ratelimited(KERN_ERR
+			"%s: skcipher_request_alloc() failed\n", __func__);
 		return -ENOMEM;
+	}
 	skcipher_request_set_callback(req,
 			CRYPTO_TFM_REQ_MAY_BACKLOG | CRYPTO_TFM_REQ_MAY_SLEEP,
 			crypto_req_done, &wait);
@@ -97,11 +100,19 @@ static int fname_decrypt(struct inode *inode,
 	struct crypto_skcipher *tfm = ci->ci_ctfm;
 	union fscrypt_iv iv;
 	int res;
+	unsigned lim;
+
+	lim = inode->i_sb->s_cop->max_namelen;
+	if (iname->len <= 0 || iname->len > lim)
+		return -EIO;
 
 	/* Allocate request */
 	req = skcipher_request_alloc(tfm, GFP_NOFS);
-	if (!req)
+	if (!req) {
+		printk_ratelimited(KERN_ERR
+			"%s: crypto_request_alloc() failed\n",  __func__);
 		return -ENOMEM;
+	}
 	skcipher_request_set_callback(req,
 		CRYPTO_TFM_REQ_MAY_BACKLOG | CRYPTO_TFM_REQ_MAY_SLEEP,
 		crypto_req_done, &wait);
@@ -330,7 +341,7 @@ int fscrypt_setup_filename(struct inode *dir, const struct qstr *iname,
 		return 0;
 	}
 	ret = fscrypt_get_encryption_info(dir);
-	if (ret)
+	if (ret && ret != -EOPNOTSUPP)
 		return ret;
 
 	if (dir->i_crypt_info) {
