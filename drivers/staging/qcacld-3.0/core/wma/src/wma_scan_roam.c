@@ -1344,6 +1344,10 @@ A_UINT32 e_csr_auth_type_to_rsn_authmode(eCsrAuthType authtype,
 		return WMI_AUTH_RSNA_FILS_SHA256;
 	case eCSR_AUTH_TYPE_FILS_SHA384:
 		return WMI_AUTH_RSNA_FILS_SHA384;
+	case eCSR_AUTH_TYPE_SUITEB_EAP_SHA256:
+		return WMI_AUTH_RSNA_SUITE_B_8021X_SHA256;
+	case eCSR_AUTH_TYPE_SUITEB_EAP_SHA384:
+		return WMI_AUTH_RSNA_SUITE_B_8021X_SHA384;
 	default:
 		return WMI_AUTH_NONE;
 	}
@@ -2231,6 +2235,7 @@ QDF_STATUS wma_process_roaming_config(tp_wma_handle wma_handle,
 						       NULL, &scan_params);
 
 			if (roam_req->reason == REASON_ROAM_STOP_ALL ||
+			    roam_req->reason == REASON_DISCONNECTED ||
 			    roam_req->reason == REASON_ROAM_SYNCH_FAILED)
 				mode = WMI_ROAM_SCAN_MODE_NONE;
 			else

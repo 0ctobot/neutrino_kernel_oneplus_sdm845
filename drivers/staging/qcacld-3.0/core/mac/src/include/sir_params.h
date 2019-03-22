@@ -203,6 +203,20 @@ typedef struct sSirMbMsgP2p {
 	uint32_t data[1];
 } tSirMbMsgP2p, *tpSirMbMsgP2p;
 
+/**
+ * struct sir_mgmt_msg - Structure used to send auth frame from CSR to LIM
+ * @type: Message type
+ * @msg_len: Message length
+ * @session_id: session id
+ * @data: Pointer to data tobe transmitted
+ */
+struct sir_mgmt_msg {
+	uint16_t type;
+	uint16_t msg_len;
+	uint8_t session_id;
+	uint8_t *data;
+};
+
 /* ******************************************* *
 *                                             *
 *         SIRIUS MESSAGE TYPES                *
@@ -700,6 +714,7 @@ typedef struct sSirMbMsgP2p {
 #define SIR_HAL_INVOKE_NEIGHBOR_REPORT      (SIR_HAL_ITC_MSG_TYPES_BEGIN + 391)
 #define SIR_HAL_NDP_SCH_UPDATE_IND          (SIR_HAL_ITC_MSG_TYPES_BEGIN + 392)
 #define SIR_HAL_GET_ROAM_SCAN_STATS         (SIR_HAL_ITC_MSG_TYPES_BEGIN + 393)
+#define SIR_HAL_SEND_BCN_RSP                (SIR_HAL_ITC_MSG_TYPES_BEGIN + 394)
 
 #define SIR_HAL_MSG_TYPES_END               (SIR_HAL_MSG_TYPES_BEGIN + 0x1FF)
 /* CFG message types */
@@ -780,6 +795,8 @@ typedef struct sSirMbMsgP2p {
 #define SIR_LIM_CONVERT_ACTIVE_CHANNEL_TO_PASSIVE \
 					 (SIR_LIM_TIMEOUT_MSG_START + 0x2C)
 #define SIR_LIM_AUTH_RETRY_TIMEOUT     (SIR_LIM_TIMEOUT_MSG_START + 0x2D)
+
+#define SIR_LIM_AUTH_SAE_TIMEOUT     (SIR_LIM_TIMEOUT_MSG_START + 0x2E)
 
 #define SIR_LIM_MSG_TYPES_END            (SIR_LIM_MSG_TYPES_BEGIN+0xFF)
 

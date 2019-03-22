@@ -1922,6 +1922,16 @@ int wma_vdev_stop_resp_handler(void *handle, uint8_t *cmd_param_info,
 	/* vdev in stopped state, no more waiting for key */
 	iface->is_waiting_for_key = false;
 
+	/*
+	 * Reset the rmfEnabled as there might be MGMT action frames
+	 * sent on this vdev before the next session is established.
+	 */
+	if (iface->rmfEnabled) {
+		iface->rmfEnabled = 0;
+		WMA_LOGD(FL("Reset rmfEnabled for vdev %d"),
+			 resp_event->vdev_id);
+	}
+
 	wma_release_wakelock(&iface->vdev_stop_wakelock);
 
 	req_msg = wma_find_vdev_req(wma, resp_event->vdev_id,
@@ -2037,6 +2047,7 @@ int wma_vdev_stop_resp_handler(void *handle, uint8_t *cmd_param_info,
 
 		wma_send_msg(wma, WMA_SET_LINK_STATE_RSP, (void *)params, 0);
 	}
+
 free_req_msg:
 	qdf_mc_timer_destroy(&req_msg->event_timeout);
 	qdf_mem_free(req_msg);
@@ -4152,14 +4163,17 @@ static void wma_add_bss_sta_mode(tp_wma_handle wma, tpAddBssParams add_bss)
 		else
 			WMA_LOGD("Sent PKT_PWR_SAVE_5G_EBT cmd to target, val = %x, status = %d",
 				pps_val, status);
-		wma_send_peer_assoc(wma, add_bss->nwType,
+		status = wma_send_peer_assoc(wma, add_bss->nwType,
 					    &add_bss->staContext);
+		if (QDF_IS_STATUS_ERROR(status)) {
+			WMA_LOGE("Failed to send peer assoc status:%d", status);
+			goto peer_cleanup;
+		}
+		peer_assoc_sent = true;
 
 		/* we just had peer assoc, so install key will be done later */
 		if (add_bss->staContext.encryptType != eSIR_ED_NONE)
 			iface->is_waiting_for_key = true;
-
-		peer_assoc_sent = true;
 
 		if (add_bss->rmfEnabled)
 			wma_set_mgmt_frame_protection(wma);

@@ -650,8 +650,10 @@ static void hdd_update_dbs_scan_ctrl_ext_flag(hdd_context_t *hdd_ctx,
 		goto end;
 	}
 
-	if (hdd_ctx->config->dual_mac_feature_disable ==
-				DISABLE_DBS_CXN_AND_SCAN) {
+	if ((hdd_ctx->config->dual_mac_feature_disable ==
+	     DISABLE_DBS_CXN_AND_SCAN) ||
+	    (hdd_ctx->config->dual_mac_feature_disable ==
+	     ENABLE_DBS_CXN_AND_DISABLE_DBS_SCAN)) {
 		hdd_debug("DBS is disabled");
 		goto end;
 	}
@@ -2056,8 +2058,10 @@ static int __wlan_hdd_cfg80211_scan(struct wiphy *wiphy,
 			return 0;
 		}
 	}
-	if (pHddCtx->config->dual_mac_feature_disable ==
-				DISABLE_DBS_CXN_AND_SCAN) {
+	if ((pHddCtx->config->dual_mac_feature_disable ==
+	     DISABLE_DBS_CXN_AND_SCAN) ||
+	    (pHddCtx->config->dual_mac_feature_disable ==
+	     ENABLE_DBS_CXN_AND_DISABLE_DBS_SCAN)) {
 		if (true == pScanInfo->mScanPending) {
 			scan_ebusy_cnt++;
 			if (MAX_PENDING_LOG >
@@ -2645,6 +2649,16 @@ static int wlan_hdd_vendor_scan_random_attr(struct wiphy *wiphy,
 	    (wdev->current_bss)) {
 		hdd_err("SCAN RANDOMIZATION not supported");
 		return -EOPNOTSUPP;
+	}
+
+	if (!tb[QCA_WLAN_VENDOR_ATTR_SCAN_MAC] &&
+	    !tb[QCA_WLAN_VENDOR_ATTR_SCAN_MAC_MASK]) {
+		qdf_mem_zero(request->mac_addr, QDF_MAC_ADDR_SIZE);
+		qdf_mem_zero(request->mac_addr_mask, QDF_MAC_ADDR_SIZE);
+		request->mac_addr[0] = 0x2;
+		request->mac_addr_mask[0] = 0x3;
+
+		return 0;
 	}
 
 	if (!tb[QCA_WLAN_VENDOR_ATTR_SCAN_MAC] ||

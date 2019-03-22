@@ -404,10 +404,6 @@ static int __hdd_hostapd_stop(struct net_device *dev)
 	hdd_stop_adapter(hdd_ctx, adapter, true);
 
 	clear_bit(DEVICE_IFACE_OPENED, &adapter->event_flags);
-
-	if (!hdd_is_cli_iface_up(hdd_ctx))
-		sme_scan_flush_result(hdd_ctx->hHal);
-
 	/* Stop all tx queues */
 	hdd_info("Disabling queues");
 	wlan_hdd_netif_queue_control(adapter,
@@ -591,6 +587,7 @@ static int __hdd_hostapd_set_mac_address(struct net_device *dev, void *addr)
 	hdd_info("Changing MAC to " MAC_ADDRESS_STR " of interface %s ",
 		 MAC_ADDR_ARRAY(mac_addr.bytes),
 		 dev->name);
+	memcpy(&adapter->macAddressCurrent, psta_mac_addr->sa_data, ETH_ALEN);
 	memcpy(dev->dev_addr, psta_mac_addr->sa_data, ETH_ALEN);
 	EXIT();
 	return 0;
@@ -9113,6 +9110,11 @@ static int __wlan_hdd_cfg80211_start_ap(struct wiphy *wiphy,
 	if (channel && (cds_get_channel_state(channel) == CHANNEL_STATE_DFS) &&
 			sta_sap_scc_on_dfs_chan && !sta_cnt) {
 		hdd_err("SAP not allowed on DFS channel!!");
+		return -EINVAL;
+	}
+	if (cds_is_etsi13_regdmn_srd_chan(cds_chan_to_freq(channel) &&
+	    !(pHddCtx->config->etsi_srd_chan_in_master_mode))) {
+		hdd_err("SAP SRD master mode not supported. Cannot start SAP");
 		return -EINVAL;
 	}
 

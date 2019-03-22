@@ -5565,6 +5565,8 @@ static QDF_STATUS cds_modify_pcl_based_on_enabled_channels(
 		}
 	}
 
+	qdf_mem_zero(pcl_list_org, *pcl_len_org);
+	qdf_mem_zero(weight_list_org, *pcl_len_org);
 	qdf_mem_copy(pcl_list_org, pcl_list, pcl_len);
 	qdf_mem_copy(weight_list_org, weight_list, pcl_len);
 	*pcl_len_org = pcl_len;
@@ -10064,6 +10066,8 @@ QDF_STATUS cds_modify_sap_pcl_based_on_mandatory_channel(uint8_t *pcl_list_org,
 		}
 	}
 
+	qdf_mem_zero(pcl_list_org, *pcl_len_org);
+	qdf_mem_zero(weight_list_org, *pcl_len_org);
 	qdf_mem_copy(pcl_list_org, pcl_list, pcl_len);
 	qdf_mem_copy(weight_list_org, weight_list, pcl_len);
 	*pcl_len_org = pcl_len;
@@ -10131,20 +10135,24 @@ QDF_STATUS cds_get_sap_mandatory_channel(uint32_t *chan)
 	return QDF_STATUS_SUCCESS;
 }
 
-uint8_t cds_get_alternate_channel_for_sap(void)
+uint8_t cds_get_diff_band_ch_for_sap(uint8_t channel)
 {
 	uint8_t pcl_channels[QDF_MAX_NUM_CHAN];
 	uint8_t pcl_weight[QDF_MAX_NUM_CHAN];
-	uint8_t channel = 0;
 	uint32_t pcl_len = 0;
+	uint8_t i = 0;
 
 	if (QDF_STATUS_SUCCESS == cds_get_pcl(CDS_SAP_MODE,
 		&pcl_channels[0], &pcl_len,
 		pcl_weight, QDF_ARRAY_SIZE(pcl_weight))) {
-		channel = pcl_channels[0];
+		for (i = 0; i < pcl_len; i++) {
+			if (CDS_IS_SAME_BAND_CHANNELS(channel,
+						      pcl_channels[i]))
+				continue;
+			return pcl_channels[i];
+		}
 	}
-
-	return channel;
+	return 0;
 }
 
 QDF_STATUS cds_valid_sap_conc_channel_check(uint8_t *con_ch, uint8_t sap_ch)
@@ -10183,12 +10191,15 @@ QDF_STATUS cds_valid_sap_conc_channel_check(uint8_t *con_ch, uint8_t sap_ch)
 
 	if (cds_valid_sta_channel_check(channel)) {
 		if (CDS_IS_DFS_CH(channel) ||
-			CDS_IS_PASSIVE_OR_DISABLE_CH(channel) ||
-			!(hdd_ctx->config->sta_sap_scc_on_lte_coex_chan ||
-			  cds_is_safe_channel(channel))) {
+		     CDS_IS_PASSIVE_OR_DISABLE_CH(channel) ||
+		    !(hdd_ctx->config->sta_sap_scc_on_lte_coex_chan ||
+		      cds_is_safe_channel(channel)) ||
+		     (!(hdd_ctx->config->etsi_srd_chan_in_master_mode) &&
+		       (cds_is_etsi13_regdmn_srd_chan(
+					cds_chan_to_freq(channel))))) {
 			if (wma_is_hw_dbs_capable()) {
 				temp_channel =
-					cds_get_alternate_channel_for_sap();
+					cds_get_diff_band_ch_for_sap(channel);
 				cds_debug("temp_channel is %d", temp_channel);
 				if (temp_channel) {
 					channel = temp_channel;

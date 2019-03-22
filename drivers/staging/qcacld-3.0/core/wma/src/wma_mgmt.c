@@ -72,6 +72,7 @@
 #include <cdp_txrx_cfg.h>
 #include <cdp_txrx_cmn.h>
 #include <cdp_txrx_misc.h>
+#include <qdf_crypto.h>
 
 /**
  * wma_send_bcn_buf_ll() - prepare and send beacon buffer to fw for LL
@@ -1566,9 +1567,7 @@ static QDF_STATUS wma_setup_install_key_cmd(tp_wma_handle wma_handle,
 {
 	struct set_key_params params;
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
-#ifdef WLAN_FEATURE_11W
 	struct wma_txrx_node *iface = NULL;
-#endif /* WLAN_FEATURE_11W */
 	if ((key_params->key_type == eSIR_ED_NONE &&
 	     key_params->key_len) || (key_params->key_type != eSIR_ED_NONE &&
 				      !key_params->key_len)) {
@@ -1670,6 +1669,10 @@ static QDF_STATUS wma_setup_install_key_cmd(tp_wma_handle wma_handle,
 	case eSIR_ED_AES_128_CMAC:
 		params.key_cipher = WMI_CIPHER_AES_CMAC;
 		break;
+	case eSIR_ED_AES_GMAC_128:
+	case eSIR_ED_AES_GMAC_256:
+		params.key_cipher = WMI_CIPHER_AES_GMAC;
+		break;
 #endif /* WLAN_FEATURE_11W */
 	/* Firmware uses length to detect GCMP 128/256*/
 	case eSIR_ED_GCMP:
@@ -1711,10 +1714,13 @@ static QDF_STATUS wma_setup_install_key_cmd(tp_wma_handle wma_handle,
 	params.key_len = key_params->key_len;
 
 #ifdef WLAN_FEATURE_11W
-	if (key_params->key_type == eSIR_ED_AES_128_CMAC) {
+	if ((key_params->key_type == eSIR_ED_AES_128_CMAC) ||
+	   (key_params->key_type == eSIR_ED_AES_GMAC_128) ||
+	   (key_params->key_type == eSIR_ED_AES_GMAC_256)) {
 		iface = &wma_handle->interfaces[key_params->vdev_id];
 		if (iface) {
 			iface->key.key_length = key_params->key_len;
+			iface->key.key_cipher = params.key_cipher;
 			qdf_mem_copy(iface->key.key,
 				     (const void *)key_params->key_data,
 				     iface->key.key_length);
@@ -2619,11 +2625,13 @@ void wma_send_beacon(tp_wma_handle wma, tpSendbeaconParams bcn_info)
 	struct sAniBeaconStruct *beacon;
 	struct vdev_up_params param = {0};
 
+	WMA_LOGD("Beacon update reason %d", bcn_info->reason);
 	beacon = (struct sAniBeaconStruct *) (bcn_info->beacon);
 	vdev = wma_find_vdev_by_addr(wma, beacon->macHdr.sa, &vdev_id);
 	if (!vdev) {
 		WMA_LOGE("%s : failed to get vdev handle", __func__);
-		return;
+		status = QDF_STATUS_E_INVAL;
+		goto send_rsp;
 	}
 
 	if (WMI_SERVICE_IS_ENABLED(wma->wmi_service_bitmap,
@@ -2633,7 +2641,7 @@ void wma_send_beacon(tp_wma_handle wma, tpSendbeaconParams bcn_info)
 		if (QDF_IS_STATUS_ERROR(status)) {
 			WMA_LOGE("%s : wmi_unified_bcn_tmpl_send Failed ",
 				 __func__);
-			return;
+			goto send_rsp;
 		}
 
 		if (bcn_info->p2pIeOffset) {
@@ -2644,14 +2652,15 @@ void wma_send_beacon(tp_wma_handle wma, tpSendbeaconParams bcn_info)
 							 p2p_ie) < 0) {
 				WMA_LOGE("%s : wmi_unified_bcn_tmpl_send Failed ",
 					__func__);
-				return;
+				status = QDF_STATUS_E_INVAL;
+				goto send_rsp;
 			}
 		}
 	}
 	status = wma_store_bcn_tmpl(wma, vdev_id, bcn_info);
 	if (status != QDF_STATUS_SUCCESS) {
 		WMA_LOGE("%s : wma_store_bcn_tmpl Failed", __func__);
-		return;
+		goto send_rsp;
 	}
 	if (!((qdf_atomic_read(
 		&wma->interfaces[vdev_id].vdev_restart_params.
@@ -2665,7 +2674,7 @@ void wma_send_beacon(tp_wma_handle wma, tpSendbeaconParams bcn_info)
 			if (QDF_IS_STATUS_ERROR(status)) {
 				WMA_LOGE(FL("failed to send vdev up"));
 				cds_set_do_hw_mode_change_flag(false);
-				return;
+				goto send_rsp;
 			}
 			wma->interfaces[vdev_id].vdev_up = true;
 			WMA_LOGD(FL("Setting vdev_up flag to true"));
@@ -2673,6 +2682,10 @@ void wma_send_beacon(tp_wma_handle wma, tpSendbeaconParams bcn_info)
 			wma_set_vdev_mgmt_rate(wma, vdev_id);
 		}
 	}
+
+send_rsp:
+	bcn_info->status = status;
+	wma_send_msg(wma, WMA_SEND_BCN_RSP, (void *)bcn_info, 0);
 }
 
 /**
@@ -3249,32 +3262,79 @@ int wma_process_bip(tp_wma_handle wma_handle,
 	uint8_t *efrm;
 
 	efrm = qdf_nbuf_data(wbuf) + qdf_nbuf_len(wbuf);
-	key_id = (uint16_t)*(efrm - cds_get_mmie_size() + 2);
+
+	if (iface->key.key_cipher == WMI_CIPHER_AES_CMAC) {
+		key_id = (uint16_t)*(efrm - cds_get_mmie_size() + 2);
+	} else if (iface->key.key_cipher == WMI_CIPHER_AES_GMAC) {
+		key_id = (uint16_t)*(efrm - cds_get_gmac_mmie_size() + 2);
+	} else {
+		WMA_LOGE(FL("Invalid key cipher %d"), iface->key.key_cipher);
+		return -EINVAL;
+	}
 
 	if (!((key_id == WMA_IGTK_KEY_INDEX_4)
 	     || (key_id == WMA_IGTK_KEY_INDEX_5))) {
 		WMA_LOGE(FL("Invalid KeyID(%d) dropping the frame"), key_id);
 		return -EINVAL;
 	}
-	if (WMI_SERVICE_IS_ENABLED(wma_handle->wmi_service_bitmap,
-				WMI_SERVICE_STA_PMF_OFFLOAD)) {
-		/*
-		 * if 11w offload is enabled then mmie validation is performed
-		 * in firmware, host just need to trim the mmie.
-		 */
-		qdf_nbuf_trim_tail(wbuf, cds_get_mmie_size());
-	} else {
-		if (cds_is_mmie_valid(iface->key.key,
-			iface->key.key_id[key_id - WMA_IGTK_KEY_INDEX_4].ipn,
-			(uint8_t *) wh, efrm)) {
-			WMA_LOGE(FL("Protected BC/MC frame MMIE validation successful"));
-			/* Remove MMIE */
+
+	WMA_LOGD(FL("key_cipher %d key_id %d"), iface->key.key_cipher, key_id);
+
+	switch (iface->key.key_cipher) {
+	case WMI_CIPHER_AES_CMAC:
+		if (WMI_SERVICE_IS_ENABLED(wma_handle->wmi_service_bitmap,
+					WMI_SERVICE_STA_PMF_OFFLOAD)) {
+			/*
+			 * if 11w offload is enabled then mmie validation is
+			 * performed in firmware, host just need to trim the
+			 * mmie.
+			 */
 			qdf_nbuf_trim_tail(wbuf, cds_get_mmie_size());
 		} else {
-			WMA_LOGE(FL("BC/MC MIC error or MMIE not present, dropping the frame"));
-			return -EINVAL;
+			if (cds_is_mmie_valid(iface->key.key,
+			   iface->key.key_id[key_id - WMA_IGTK_KEY_INDEX_4].ipn,
+			   (uint8_t *) wh, efrm)) {
+				WMA_LOGD(FL("Protected BC/MC frame MMIE validation successful"));
+				/* Remove MMIE */
+				qdf_nbuf_trim_tail(wbuf, cds_get_mmie_size());
+			} else {
+				WMA_LOGD(FL("BC/MC MIC error or MMIE not present, dropping the frame"));
+				return -EINVAL;
+			}
 		}
+		break;
+
+	case WMI_CIPHER_AES_GMAC:
+		if (WMI_SERVICE_EXT_IS_ENABLED(wma_handle->wmi_service_bitmap,
+		    wma_handle->wmi_service_ext_bitmap,
+		    WMI_SERVICE_GMAC_OFFLOAD_SUPPORT)) {
+			/*
+			 * if gmac offload is enabled then mmie validation is
+			 * performed in firmware, host just need to trim the
+			 * mmie.
+			 */
+			WMA_LOGD(FL("Trim GMAC MMIE"));
+			qdf_nbuf_trim_tail(wbuf, cds_get_gmac_mmie_size());
+		} else {
+			if (cds_is_gmac_mmie_valid(iface->key.key,
+			   iface->key.key_id[key_id - WMA_IGTK_KEY_INDEX_4].ipn,
+			   (uint8_t *) wh, efrm, iface->key.key_length)) {
+				WMA_LOGD(FL("Protected BC/MC frame GMAC MMIE validation successful"));
+				/* Remove MMIE */
+				qdf_nbuf_trim_tail(wbuf,
+						   cds_get_gmac_mmie_size());
+			} else {
+				WMA_LOGD(FL("BC/MC GMAC MIC error or MMIE not present, dropping the frame"));
+				return -EINVAL;
+			}
+		}
+		break;
+
+	default:
+		WMA_LOGE(FL("Unsupported key cipher %d"),
+			iface->key.key_cipher);
 	}
+
 	return 0;
 }
 
