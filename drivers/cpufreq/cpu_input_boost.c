@@ -12,6 +12,8 @@
 #include <linux/msm_drm_notify.h>
 #include <linux/slab.h>
 
+unsigned long last_input_jiffies;
+
 static __read_mostly unsigned int input_boost_freq_lp = CONFIG_INPUT_BOOST_FREQ_LP;
 static __read_mostly unsigned int input_boost_freq_hp = CONFIG_INPUT_BOOST_FREQ_PERF;
 static __read_mostly unsigned int input_boost_return_freq_lp = CONFIG_REMOVE_INPUT_BOOST_FREQ_LP;
@@ -19,6 +21,7 @@ static __read_mostly unsigned int input_boost_return_freq_hp = CONFIG_REMOVE_INP
 static __read_mostly unsigned int frame_boost_freq_lp = CONFIG_FRAME_BOOST_FREQ_LP;
 static __read_mostly unsigned int frame_boost_freq_hp = CONFIG_FRAME_BOOST_FREQ_PERF;
 static __read_mostly unsigned short input_boost_duration = CONFIG_INPUT_BOOST_DURATION_MS;
+static __read_mostly int frame_boost_timeout = CONFIG_FRAME_BOOST_TIMEOUT;
 
 module_param(input_boost_freq_lp, uint, 0644);
 module_param(input_boost_freq_hp, uint, 0644);
@@ -27,6 +30,7 @@ module_param_named(remove_input_boost_freq_perf, input_boost_return_freq_hp, uin
 module_param(frame_boost_freq_lp, uint, 0644);
 module_param(frame_boost_freq_hp, uint, 0644);
 module_param(input_boost_duration, short, 0644);
+module_param(frame_boost_timeout, int, 0644);
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 static __read_mostly int input_stune_boost = CONFIG_INPUT_STUNE_BOOST;
@@ -147,6 +151,18 @@ static void unboost_all_cpus(struct boost_drv *b)
 	clear_stune_boost(b, &b->input_stune_active, b->input_stune_slot);
 	clear_stune_boost(b, &b->max_stune_active, b->max_stune_slot);
 	clear_stune_boost(b, &b->frame_stune_active, b->frame_stune_slot);
+}
+
+bool should_kick_frame_boost(void)
+{
+	if (frame_boost_timeout == 0)
+		return true;
+
+	if (frame_boost_timeout < 0)
+		return false;
+
+	return time_before(jiffies, last_input_jiffies +
+			   msecs_to_jiffies(frame_boost_timeout));
 }
 
 static void __cpu_input_boost_kick(struct boost_drv *b)
@@ -378,6 +394,8 @@ static void cpu_input_boost_input_event(struct input_handle *handle,
 	struct boost_drv *b = handle->handler->private;
 
 	__cpu_input_boost_kick(b);
+
+	last_input_jiffies = jiffies;
 }
 
 static int cpu_input_boost_input_connect(struct input_handler *handler,
