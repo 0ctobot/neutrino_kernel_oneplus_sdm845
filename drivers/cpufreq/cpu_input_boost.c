@@ -493,7 +493,7 @@ static int __init cpu_input_boost_init(void)
 	INIT_DELAYED_WORK(&b->max_unboost, max_unboost_worker);
 	INIT_WORK(&b->frame_boost, frame_boost_worker);
 	INIT_DELAYED_WORK(&b->frame_unboost, frame_unboost_worker);
-	atomic_set(&b->state, 0);
+	atomic_set(&b->state, SCREEN_AWAKE);
 
 	b->cpu_notif.notifier_call = cpu_notifier_cb;
 	b->cpu_notif.priority = INT_MAX - 2;
