@@ -33,9 +33,9 @@ module_param(input_boost_duration, short, 0644);
 module_param(frame_boost_timeout, int, 0644);
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
-static __read_mostly int input_stune_boost = CONFIG_INPUT_STUNE_BOOST;
-static __read_mostly int max_stune_boost = CONFIG_MAX_STUNE_BOOST;
-static __read_mostly int frame_stune_boost = CONFIG_FRAME_STUNE_BOOST;
+static __read_mostly int input_stune_boost = CONFIG_INPUT_BOOST_STUNE;
+static __read_mostly int max_stune_boost = CONFIG_MAX_BOOST_STUNE;
+static __read_mostly int frame_stune_boost = CONFIG_FRAME_BOOST_STUNE;
 
 module_param_named(dynamic_stune_boost, input_stune_boost, int, 0644);
 module_param(max_stune_boost, int, 0644);
