@@ -292,14 +292,22 @@ config INPUT_BOOST_FREQ_PERF
 	help
 	  Input boost frequency for the performance CPU cluster.
 
-config INPUT_STUNE_BOOST
-	int "Input SchedTune boost value for top-app"
+config INPUT_BOOST_STUNE
+	int "Top-app SchedTune value during input boosts"
 	depends on DYNAMIC_STUNE_BOOST
-	default "15"
+	default "25"
 	help
-	  SchedTune boost value for input boost. This alters the perceived load
-	  of process groups in order to bias core selection as well as CPU
-	  frequency selection. A value of 0 disables this functionality.
+	  Top-app SchedTune boost value during input boost kicks. This
+	  alters the perceived load of process groups in order to bias
+	  core selection as well as CPU frequency selection. A value of
+	  0 disables this functionality.
+
+config FRAME_BOOST_TIMEOUT
+	int "Post-input timeout for frame boost"
+	default "3250"
+	help
+	  The amount of time in milliseconds to boost on frame updates after the
+	  last input event.
 
 config REMOVE_INPUT_BOOST_FREQ_LP
 	int "Low-power cluster return frequency"
@@ -321,14 +329,37 @@ config REMOVE_INPUT_BOOST_FREQ_PERF
 	  of using a higher than cpuinfo.min_freq (e.g. OnePlus 5/5T/6)
 	  this frequency will be used.
 
-config MAX_STUNE_BOOST
-	int "Max SchedTune boost value for top-app"
-	depends on DYNAMIC_STUNE_BOOST
-	default "100"
+config FRAME_BOOST_FREQ_LP
+	int "Low-power cluster frame boost freq"
+	default "0"
 	help
-	  SchedTune boost value for max boost. This alters the perceived load
-	  of process groups in order to bias core selection as well as CPU
-	  frequency selection. A value of 0 disables this functionality.
+	  Frame boost frequency for the low-power CPU cluster.
+
+config FRAME_BOOST_FREQ_PERF
+	int "Performance cluster frame boost freq"
+	default "0"
+	help
+	  Frame boost frequency for the performance CPU cluster.
+
+config FRAME_BOOST_STUNE
+	int "Top-app SchedTune value during frame boosts"
+	depends on DYNAMIC_STUNE_BOOST
+	default "10"
+	help
+	  Top-app SchedTune boost value during frame boost kicks. This
+	  alters the perceived load of process groups in order to bias
+	  core selection as well as CPU frequency selection. A value of
+	  0 disables this functionality.
+
+config MAX_BOOST_STUNE
+	int "Top-app SchedTune value during max boosts"
+	depends on DYNAMIC_STUNE_BOOST
+	default "50"
+	help
+	  Top-app SchedTune boost value during max boost kicks. This
+	  alters the perceived load of process groups in order to bias
+	  core selection as well as CPU frequency selection. A value of
+	  0 disables this functionality.
 
 endif
 

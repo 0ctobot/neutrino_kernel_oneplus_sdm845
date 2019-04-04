@@ -31,6 +31,7 @@
 #include <drm/drm_mode.h>
 #include <drm/drm_plane_helper.h>
 #include <linux/sync_file.h>
+#include <linux/cpu_input_boost.h>
 #include <linux/devfreq_boost.h>
 
 #include "drm_crtc_internal.h"
@@ -1905,8 +1906,15 @@ int drm_mode_atomic_ioctl(struct drm_device *dev,
 			(arg->flags & DRM_MODE_PAGE_FLIP_EVENT))
 		return -EINVAL;
 
-	if (!(arg->flags & DRM_MODE_ATOMIC_TEST_ONLY))
+#ifdef CONFIG_CPU_INPUT_BOOST
+	if (!(arg->flags & DRM_MODE_ATOMIC_TEST_ONLY) &&
+			should_kick_frame_boost()) {
+		cpu_frame_boost_kick(64);
+#ifdef CONFIG_DEVFREQ_BOOST
 		devfreq_boost_kick(DEVFREQ_MSM_CPUBW);
+#endif
+	}
+#endif
 
 	drm_modeset_acquire_init(&ctx, 0);
 
