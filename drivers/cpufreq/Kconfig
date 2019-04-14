@@ -280,6 +280,14 @@ config WAKE_BOOST_DURATION_MS
 	help
 	  Wake boost duration in milliseconds.
 
+config TA_STUNE_BOOST
+	int "Foreground app SchedTune boost value"
+	depends on DYNAMIC_STUNE_BOOST
+	default "15"
+	help
+	  SchedTune boost value for the foreground app. This alters the
+	  perceived load in order to bias CPU and frequency selection.
+
 config INPUT_BOOST_FREQ_LP
 	int "Low-power cluster boost freq"
 	default "0"
@@ -292,22 +300,29 @@ config INPUT_BOOST_FREQ_PERF
 	help
 	  Input boost frequency for the performance CPU cluster.
 
-config INPUT_BOOST_STUNE
-	int "Top-app SchedTune value during input boosts"
-	depends on DYNAMIC_STUNE_BOOST
-	default "25"
+config MAX_BOOST_FREQ_LP
+	int "Low-power cluster max-boost freq"
+	default "0"
 	help
-	  Top-app SchedTune boost value during input boost kicks. This
-	  alters the perceived load of process groups in order to bias
-	  core selection as well as CPU frequency selection. A value of
-	  0 disables this functionality.
+	  Max-boost frequency for the low-power CPU cluster.
 
-config FRAME_BOOST_TIMEOUT
-	int "Post-input timeout for frame boost"
-	default "3250"
+config MAX_BOOST_FREQ_PERF
+	int "Performance cluster max-boost freq"
+	default "0"
 	help
-	  The amount of time in milliseconds to boost on frame updates after the
-	  last input event.
+	  Max-boost frequency for the performance CPU cluster.
+
+config FRAME_BOOST_FREQ_LP
+	int "Low-power cluster frame boost freq"
+	default "0"
+	help
+	  Frame boost frequency for the low-power CPU cluster.
+
+config FRAME_BOOST_FREQ_PERF
+	int "Performance cluster frame boost freq"
+	default "0"
+	help
+	  Frame boost frequency for the performance CPU cluster.
 
 config REMOVE_INPUT_BOOST_FREQ_LP
 	int "Low-power cluster return frequency"
@@ -328,39 +343,6 @@ config REMOVE_INPUT_BOOST_FREQ_PERF
 	  use cpuinfo.min_freq. In case the device has some kind of quirk
 	  of using a higher than cpuinfo.min_freq (e.g. OnePlus 5/5T/6)
 	  this frequency will be used.
-
-config FRAME_BOOST_FREQ_LP
-	int "Low-power cluster frame boost freq"
-	default "0"
-	help
-	  Frame boost frequency for the low-power CPU cluster.
-
-config FRAME_BOOST_FREQ_PERF
-	int "Performance cluster frame boost freq"
-	default "0"
-	help
-	  Frame boost frequency for the performance CPU cluster.
-
-config FRAME_BOOST_STUNE
-	int "Top-app SchedTune value during frame boosts"
-	depends on DYNAMIC_STUNE_BOOST
-	default "10"
-	help
-	  Top-app SchedTune boost value during frame boost kicks. This
-	  alters the perceived load of process groups in order to bias
-	  core selection as well as CPU frequency selection. A value of
-	  0 disables this functionality.
-
-config MAX_BOOST_STUNE
-	int "Top-app SchedTune value during max boosts"
-	depends on DYNAMIC_STUNE_BOOST
-	default "50"
-	help
-	  Top-app SchedTune boost value during max boost kicks. This
-	  alters the perceived load of process groups in order to bias
-	  core selection as well as CPU frequency selection. A value of
-	  0 disables this functionality.
-
 endif
 
 comment "CPU frequency scaling drivers"
