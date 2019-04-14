@@ -117,7 +117,7 @@ static bool sugov_should_update_freq(struct sugov_policy *sg_policy, u64 time)
 	 * schedule the kthread.
 	 */
 	if (sg_policy->policy->fast_switch_enabled &&
-	    !cpufreq_can_do_remote_dvfs(sg_policy->policy))
+	    !cpufreq_this_cpu_can_update(sg_policy->policy))
 		return false;
 
 	if (unlikely(sg_policy->need_freq_update))
@@ -833,11 +833,7 @@ static int sugov_kthread_create(struct sugov_policy *sg_policy)
 	}
 
 	sg_policy->thread = thread;
-
-	/* Kthread is bound to all CPUs by default */
-	if (!policy->dvfs_possible_from_any_cpu)
-		kthread_bind_mask(thread, policy->related_cpus);
-
+	kthread_bind_mask(thread, policy->related_cpus);
 	init_irq_work(&sg_policy->irq_work, sugov_irq_work);
 	mutex_init(&sg_policy->work_lock);
 

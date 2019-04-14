@@ -8500,6 +8500,10 @@ int can_migrate_task(struct task_struct *p, struct lb_env *env)
 		return 0;
 	}
 
+	/* Don't detach task if it is under active migration */
+	if (env->src_rq->push_task == p)
+		return 0;
+
 	/*
 	 * Aggressive migration if:
 	 * 1) IDLE or NEWLY_IDLE balance.
@@ -9162,6 +9166,11 @@ group_is_overloaded(struct lb_env *env, struct sg_lb_stats *sgs)
 {
 	if (sgs->sum_nr_running <= sgs->group_weight)
 		return false;
+
+#ifdef CONFIG_SCHED_WALT
+	if (env->idle != CPU_NOT_IDLE && walt_rotation_enabled)
+		return true;
+#endif
 
 	if ((sgs->group_capacity * 100) <
 			(sgs->group_util * env->sd->imbalance_pct))
@@ -10613,6 +10622,7 @@ static int active_load_balance_cpu_stop(void *data)
 			push_task->state == TASK_RUNNING &&
 			task_cpu(push_task) == busiest_cpu &&
 					cpu_online(target_cpu)) {
+			update_rq_clock(busiest_rq);
 			detach_task(push_task, &env);
 			push_task_detached = 1;
 			moved = true;

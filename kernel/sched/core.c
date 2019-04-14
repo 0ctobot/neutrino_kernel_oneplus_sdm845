@@ -777,6 +777,10 @@ static inline void dequeue_task(struct rq *rq, struct task_struct *p, int flags)
 		psi_dequeue(p, flags & DEQUEUE_SLEEP);
 	}
 	p->sched_class->dequeue_task(rq, p, flags);
+#ifdef CONFIG_SCHED_WALT
+	if (p == rq->ed_task)
+		early_detection_notify(rq, sched_ktime_clock());
+#endif
 	trace_sched_enq_deq_task(p, 0, cpumask_bits(&p->cpus_allowed)[0]);
 }
 
@@ -4194,8 +4198,6 @@ static void __setscheduler_params(struct task_struct *p,
 
 	if (policy == SETPARAM_POLICY)
 		policy = p->policy;
-	else
-		policy &= ~SCHED_RESET_ON_FORK;
 
 	p->policy = policy;
 
@@ -6039,12 +6041,6 @@ int sched_isolate_cpu(int cpu)
 
 	cpumask_andnot(&avail_cpus, cpu_online_mask, cpu_isolated_mask);
 
-	/* We cannot isolate ALL cpus in the system */
-	if (cpumask_weight(&avail_cpus) == 1) {
-		ret_code = -EINVAL;
-		goto out;
-	}
-
 	if (!cpu_online(cpu)) {
 		ret_code = -EINVAL;
 		goto out;
@@ -6052,6 +6048,13 @@ int sched_isolate_cpu(int cpu)
 
 	if (++cpu_isolation_vote[cpu] > 1)
 		goto out;
+
+	/* We cannot isolate ALL cpus in the system */
+	if (cpumask_weight(&avail_cpus) == 1) {
+		--cpu_isolation_vote[cpu];
+		ret_code = -EINVAL;
+		goto out;
+	}
 
 	/*
 	 * There is a race between watchdog being enabled by hotplug and
