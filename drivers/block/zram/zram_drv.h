@@ -16,10 +16,26 @@
 #define _ZRAM_DRV_H_
 
 #include <linux/rwsem.h>
-#include <linux/zsmalloc.h>
+#include <linux/zpool.h>
 #include <linux/crypto.h>
 
 #include "zcomp.h"
+
+/*-- Configurable parameters */
+
+/*
+ * Pages that compress to size greater than this are stored
+ * uncompressed in memory.
+ */
+static const size_t max_zpage_size = PAGE_SIZE / 4 * 3;
+
+/*
+ * NOTE: max_zpage_size must be less than or equal to:
+ *   ZS_MAX_ALLOC_SIZE. Otherwise, zs_malloc() would
+ * always return failure.
+ */
+
+/*-- End of configurable params */
 
 #define SECTOR_SHIFT		9
 #define SECTORS_PER_PAGE_SHIFT	(PAGE_SHIFT - SECTOR_SHIFT)
@@ -31,7 +47,7 @@
 
 
 /*
- * The lower ZRAM_FLAG_SHIFT bits of table.flags is for
+ * The lower ZRAM_FLAG_SHIFT bits of table.value is for
  * object size (excluding header), the higher bits is for
  * zram_pageflags.
  *
@@ -42,15 +58,13 @@
  */
 #define ZRAM_FLAG_SHIFT 24
 
-/* Flags for zram pages (table[page_no].flags) */
+/* Flags for zram pages (table[page_no].value) */
 enum zram_pageflags {
 	/* zram slot is locked */
 	ZRAM_LOCK = ZRAM_FLAG_SHIFT,
 	ZRAM_SAME,	/* Page consists the same element */
 	ZRAM_WB,	/* page is stored on backing_device */
-	ZRAM_UNDER_WB,	/* page is under writeback */
 	ZRAM_HUGE,	/* Incompressible page */
-	ZRAM_IDLE,	/* not accessed page since last idle marking */
 
 	__NR_ZRAM_PAGEFLAGS,
 };
@@ -63,7 +77,7 @@ struct zram_table_entry {
 		unsigned long handle;
 		unsigned long element;
 	};
-	unsigned long flags;
+	unsigned long value;
 #ifdef CONFIG_ZRAM_MEMORY_TRACKING
 	ktime_t ac_time;
 #endif
@@ -83,16 +97,11 @@ struct zram_stats {
 	atomic_long_t max_used_pages;	/* no. of maximum pages stored */
 	atomic64_t writestall;		/* no. of write slow paths */
 	atomic64_t miss_free;		/* no. of missed free */
-#ifdef	CONFIG_ZRAM_WRITEBACK
-	atomic64_t bd_count;		/* no. of pages in backing device */
-	atomic64_t bd_reads;		/* no. of reads from backing device */
-	atomic64_t bd_writes;		/* no. of writes from backing device */
-#endif
 };
 
 struct zram {
 	struct zram_table_entry *table;
-	struct zs_pool *mem_pool;
+	struct zpool *mem_pool;
 	struct zcomp *comp;
 	struct gendisk *disk;
 	/* Prevent concurrent execution of device init */
@@ -113,11 +122,8 @@ struct zram {
 	 * zram is claimed so open request will be failed
 	 */
 	bool claim; /* Protected by bdev->bd_mutex */
-	struct file *backing_dev;
 #ifdef CONFIG_ZRAM_WRITEBACK
-	spinlock_t wb_limit_lock;
-	bool wb_limit_enable;
-	u64 bd_wb_limit;
+	struct file *backing_dev;
 	struct block_device *bdev;
 	unsigned int old_block_size;
 	unsigned long *bitmap;

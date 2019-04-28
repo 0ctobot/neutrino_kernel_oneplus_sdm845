@@ -353,7 +353,7 @@ static void destroy_cache(struct zs_pool *pool)
 static unsigned long cache_alloc_handle(struct zs_pool *pool, gfp_t gfp)
 {
 	return (unsigned long)kmem_cache_alloc(pool->handle_cachep,
-			gfp & ~(__GFP_HIGHMEM|__GFP_MOVABLE|__GFP_CMA));
+			gfp & ~(__GFP_HIGHMEM|__GFP_MOVABLE));
 }
 
 static void cache_free_handle(struct zs_pool *pool, unsigned long handle)
@@ -364,7 +364,7 @@ static void cache_free_handle(struct zs_pool *pool, unsigned long handle)
 static struct zspage *cache_alloc_zspage(struct zs_pool *pool, gfp_t flags)
 {
 	return kmem_cache_alloc(pool->zspage_cachep,
-			flags & ~(__GFP_HIGHMEM|__GFP_MOVABLE|__GFP_CMA));
+			flags & ~(__GFP_HIGHMEM|__GFP_MOVABLE));
 };
 
 static void cache_free_zspage(struct zs_pool *pool, struct zspage *zspage)
@@ -450,6 +450,19 @@ static u64 zs_zpool_total_size(void *pool)
 	return zs_get_total_pages(pool) << PAGE_SHIFT;
 }
 
+static unsigned long zs_zpool_compact(void *pool)
+{
+	return zs_compact(pool);
+}
+
+static unsigned long zs_zpool_get_compacted(void *pool)
+{
+	struct zs_pool_stats stats;
+
+	zs_pool_stats(pool, &stats);
+	return stats.pages_compacted;
+}
+
 static struct zpool_driver zs_zpool_driver = {
 	.type =		"zsmalloc",
 	.owner =	THIS_MODULE,
@@ -461,6 +474,8 @@ static struct zpool_driver zs_zpool_driver = {
 	.map =		zs_zpool_map,
 	.unmap =	zs_zpool_unmap,
 	.total_size =	zs_zpool_total_size,
+	.compact =	zs_zpool_compact,
+	.get_num_compacted =	zs_zpool_get_compacted,
 };
 
 MODULE_ALIAS("zpool-zsmalloc");
