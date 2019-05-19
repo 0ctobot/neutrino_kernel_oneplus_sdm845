@@ -54,8 +54,13 @@ module_param(input_boost_duration, short, 0644);
 module_param(wake_boost_duration, short, 0644);
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
-static __read_mostly int stune_boost = CONFIG_TA_STUNE_BOOST;
-module_param_named(dynamic_stune_boost, stune_boost, int, 0644);
+static __read_mostly int input_stune_boost = CONFIG_INPUT_STUNE_BOOST;
+static __read_mostly int max_stune_boost = CONFIG_MAX_STUNE_BOOST;
+static __read_mostly int frame_stune_boost = CONFIG_FRAME_STUNE_BOOST;
+
+module_param_named(dynamic_stune_boost, input_stune_boost, int, 0644);
+module_param(max_stune_boost, int, 0644);
+module_param(frame_stune_boost, int, 0644);
 #endif
 
 /* Available bits for boost state */
@@ -78,8 +83,12 @@ struct boost_drv {
 	unsigned long state;
 	unsigned long last_input_jiffies;
 
-	bool stune_active;
-	int stune_slot;
+	bool input_stune_active;
+	int input_stune_slot;
+	bool max_stune_active;
+	int max_stune_slot;
+	bool frame_stune_active;
+	int frame_stune_slot;
 };
 
 static void input_unboost_worker(struct work_struct *work);
@@ -165,20 +174,26 @@ bool should_kick_frame_boost(unsigned long timeout_ms)
 			   msecs_to_jiffies(timeout_ms));
 }
 
-static void update_stune_boost(struct boost_drv *b, int value)
+static void update_stune_boost(int *slot, bool *active, int value)
 {
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
-	if (value && !b->stune_active)
-		b->stune_active = !do_stune_boost("top-app", value,
-						  &b->stune_slot);
+	if (value && !*active)
+		*active = !do_stune_boost("top-app", value, slot);
 #endif
 }
 
 static void clear_stune_boost(struct boost_drv *b)
 {
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
-	if (b->stune_active)
-		b->stune_active = reset_stune_boost("top-app", b->stune_slot);
+	if (b->input_stune_active)
+		b->input_stune_active = reset_stune_boost("top-app",
+							  b->input_stune_slot);
+	if (b->max_stune_active)
+		b->max_stune_active = reset_stune_boost("top-app",
+							b->max_stune_slot);
+	if (b->frame_stune_active)
+		b->frame_stune_active = reset_stune_boost("top-app",
+							  b->frame_stune_slot);
 #endif
 }
 
@@ -341,7 +356,9 @@ static int cpu_notifier_cb(struct notifier_block *nb, unsigned long action,
 	/* Boost CPU to max frequency for max boost */
 	if (test_bit(MAX_BOOST, &b->state)) {
 		policy->min = get_max_boost_freq(policy);
-		update_stune_boost(b, stune_boost);
+		clear_stune_boost(b);
+		update_stune_boost(&b->max_stune_slot,
+				   &b->max_stune_active, max_stune_boost);
 		return NOTIFY_OK;
 	}
 
@@ -351,10 +368,14 @@ static int cpu_notifier_cb(struct notifier_block *nb, unsigned long action,
 	 */
 	if (test_bit(INPUT_BOOST, &b->state)) {
 		policy->min = get_input_boost_freq(policy);
-		update_stune_boost(b, stune_boost);
+		clear_stune_boost(b);
+		update_stune_boost(&b->input_stune_slot,
+				   &b->input_stune_active, input_stune_boost);
 	} else if (test_bit(FRAME_BOOST, &b->state)) {
 		policy->min = get_frame_boost_freq(policy);
-		update_stune_boost(b, stune_boost);
+		clear_stune_boost(b);
+		update_stune_boost(&b->frame_stune_slot,
+				   &b->frame_stune_active, frame_stune_boost);
 	} else {
 		policy->min = get_min_freq(policy);
 		clear_stune_boost(b);
