@@ -737,7 +737,7 @@ static void lim_print_ht_cap(tpAniSirGlobal mac_ctx, tpPESession session,
  *
  * wpa ie related checks
  *
- * Return: true of no error, false otherwise
+ * Return: true if no error, false otherwise
  */
 static bool lim_chk_n_process_wpa_rsn_ie(tpAniSirGlobal mac_ctx,
 					 tpSirMacMgmtHdr hdr,
