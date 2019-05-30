@@ -505,7 +505,7 @@ static ssize_t up_rate_limit_us_store(struct gov_attr_set *attr_set,
 	struct sugov_policy *sg_policy;
 	unsigned int rate_limit_us;
 
-	if (!strncmp(current->comm, "init", sizeof("init")))
+	if (!strcmp(current->comm, "init"))
 		return count;
 
 	if (kstrtouint(buf, 10, &rate_limit_us))
@@ -528,7 +528,7 @@ static ssize_t down_rate_limit_us_store(struct gov_attr_set *attr_set,
 	struct sugov_policy *sg_policy;
 	unsigned int rate_limit_us;
 
-	if (!strncmp(current->comm, "init", sizeof("init")))
+	if (!strcmp(current->comm, "init"))
 		return count;
 
 	if (kstrtouint(buf, 10, &rate_limit_us))
@@ -574,6 +574,9 @@ static ssize_t iowait_boost_enable_store(struct gov_attr_set *attr_set,
 {
 	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
 	bool enable;
+
+	if (!strcmp(current->comm, "init"))
+		return count;
 
 	if (kstrtobool(buf, &enable))
 		return -EINVAL;
@@ -785,10 +788,9 @@ static int sugov_init(struct cpufreq_policy *policy)
 		tunables->down_rate_limit_us *= lat;
 	}
 
-	/* Hard-code default rate-limit values */
+	/* Hard-code default tunables */
 	tunables->up_rate_limit_us = 500;
 	tunables->down_rate_limit_us = 20000;
-
 	tunables->iowait_boost_enable = true;
 
 	policy->governor_data = sg_policy;
