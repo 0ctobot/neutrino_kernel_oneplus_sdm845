@@ -309,7 +309,6 @@ struct cfq_group {
 	struct cfq_queue *async_idle_cfqq;
 
 	u64 group_idle;
-
 };
 
 struct cfq_io_cq {
@@ -388,6 +387,7 @@ struct cfq_data {
 	u64 cfq_fifo_expire[2];
 	u64 cfq_slice[2];
 	u64 cfq_slice_idle;
+	u64 cfq_group_idle;
 	u64 cfq_target_latency;
 
 	/*
@@ -773,16 +773,6 @@ static void cfqg_stats_xfer_dead(struct cfq_group *cfqg)
 	cfqg_stats_reset(&cfqg->stats);
 }
 
-static inline u64 get_group_idle(struct cfq_data *cfqd)
-{
-	struct cfq_queue *cfqq = cfqd->active_queue;
-
-	if (cfqq && cfqq->cfqg)
-		return cfqq->cfqg->group_idle;
-
-	return cfq_group_idle;
-}
-
 #else	/* CONFIG_CFQ_GROUP_IOSCHED */
 
 static inline struct cfq_group *cfqg_parent(struct cfq_group *cfqg) { return NULL; }
@@ -813,12 +803,18 @@ static inline void cfqg_stats_update_completion(struct cfq_group *cfqg,
 			uint64_t start_time, uint64_t io_start_time, int op,
 			int op_flags) { }
 
+#endif	/* CONFIG_CFQ_GROUP_IOSCHED */
+
 static inline u64 get_group_idle(struct cfq_data *cfqd)
 {
-	return cfq_group_idle;
-}
+#ifdef CONFIG_CFQ_GROUP_IOSCHED
+	struct cfq_queue *cfqq = cfqd->active_queue;
 
-#endif	/* CONFIG_CFQ_GROUP_IOSCHED */
+	if (cfqq && cfqq->cfqg)
+		return cfqq->cfqg->group_idle;
+#endif
+	return cfqd->cfq_group_idle;
+}
 
 #define cfq_log(cfqd, fmt, args...)	\
 	blk_add_trace_msg((cfqd)->queue, "cfq " fmt, ##args)
@@ -1810,20 +1806,7 @@ static int cfq_print_leaf_weight(struct seq_file *sf, void *v)
 	return 0;
 }
 
-static int cfq_print_group_idle_ms(struct seq_file *sf, void *v)
-{
-	struct blkcg *blkcg = css_to_blkcg(seq_css(sf));
-	struct cfq_group_data *cgd = blkcg_to_cfqgd(blkcg);
-	u64 val = 0;
-
-	if (cgd)
-		val = cgd->group_idle;
-
-	seq_printf(sf, "%llu\n", div_u64(val, NSEC_PER_MSEC));
-	return 0;
-}
-
-static int cfq_print_group_idle_us(struct seq_file *sf, void *v)
+static int cfq_print_group_idle(struct seq_file *sf, void *v)
 {
 	struct blkcg *blkcg = css_to_blkcg(seq_css(sf));
 	struct cfq_group_data *cgd = blkcg_to_cfqgd(blkcg);
@@ -1957,8 +1940,8 @@ static int cfq_set_leaf_weight(struct cgroup_subsys_state *css,
 	return __cfq_set_weight(css, val, false, false, true);
 }
 
-static int __cfq_set_group_idle(struct cgroup_subsys_state *css,
-			       u64 val, bool is_us)
+static int cfq_set_group_idle(struct cgroup_subsys_state *css,
+			       struct cftype *cft, u64 val)
 {
 	struct blkcg *blkcg = css_to_blkcg(css);
 	struct cfq_group_data *cfqgd;
@@ -1972,10 +1955,7 @@ static int __cfq_set_group_idle(struct cgroup_subsys_state *css,
 		goto out;
 	}
 
-	if (!is_us)
-		cfqgd->group_idle = val * NSEC_PER_MSEC;
-	else
-		cfqgd->group_idle = val * NSEC_PER_USEC;
+	cfqgd->group_idle = val * NSEC_PER_USEC;
 
 	hlist_for_each_entry(blkg, &blkcg->blkg_list, blkcg_node) {
 		struct cfq_group *cfqg = blkg_to_cfqg(blkg);
@@ -1989,18 +1969,6 @@ static int __cfq_set_group_idle(struct cgroup_subsys_state *css,
 out:
 	spin_unlock_irq(&blkcg->lock);
 	return ret;
-}
-
-static int cfq_set_group_idle_ms(struct cgroup_subsys_state *css,
-			       struct cftype *cft, u64 val)
-{
-	return __cfq_set_group_idle(css, val, false);
-}
-
-static int cfq_set_group_idle_us(struct cgroup_subsys_state *css,
-			       struct cftype *cft, u64 val)
-{
-	return __cfq_set_group_idle(css, val, true);
 }
 
 static int cfqg_print_stat(struct seq_file *sf, void *v)
@@ -2150,13 +2118,8 @@ static struct cftype cfq_blkcg_legacy_files[] = {
 	},
 	{
 		.name = "group_idle",
-		.seq_show = cfq_print_group_idle_ms,
-		.write_u64 = cfq_set_group_idle_ms,
-	},
-	{
-		.name = "group_idle_us",
-		.seq_show = cfq_print_group_idle_us,
-		.write_u64 = cfq_set_group_idle_us,
+		.seq_show = cfq_print_group_idle,
+		.write_u64 = cfq_set_group_idle,
 	},
 
 	/* statistics, covers only the tasks in the cfqg */
@@ -4784,6 +4747,7 @@ static int cfq_init_queue(struct request_queue *q, struct elevator_type *e)
 	cfqd->cfq_target_latency = cfq_target_latency;
 	cfqd->cfq_slice_async_rq = cfq_slice_async_rq;
 	cfqd->cfq_slice_idle = cfq_slice_idle;
+	cfqd->cfq_group_idle = cfq_group_idle;
 	cfqd->cfq_latency = 1;
 	cfqd->hw_tag = -1;
 	/*
@@ -4844,6 +4808,7 @@ SHOW_FUNCTION(cfq_fifo_expire_async_show, cfqd->cfq_fifo_expire[0], 1);
 SHOW_FUNCTION(cfq_back_seek_max_show, cfqd->cfq_back_max, 0);
 SHOW_FUNCTION(cfq_back_seek_penalty_show, cfqd->cfq_back_penalty, 0);
 SHOW_FUNCTION(cfq_slice_idle_show, cfqd->cfq_slice_idle, 1);
+SHOW_FUNCTION(cfq_group_idle_show, cfqd->cfq_group_idle, 1);
 SHOW_FUNCTION(cfq_slice_sync_show, cfqd->cfq_slice[1], 1);
 SHOW_FUNCTION(cfq_slice_async_show, cfqd->cfq_slice[0], 1);
 SHOW_FUNCTION(cfq_slice_async_rq_show, cfqd->cfq_slice_async_rq, 0);
@@ -4860,6 +4825,7 @@ static ssize_t __FUNC(struct elevator_queue *e, char *page)		\
 	return cfq_var_show(__data, (page));				\
 }
 USEC_SHOW_FUNCTION(cfq_slice_idle_us_show, cfqd->cfq_slice_idle);
+USEC_SHOW_FUNCTION(cfq_group_idle_us_show, cfqd->cfq_group_idle);
 USEC_SHOW_FUNCTION(cfq_slice_sync_us_show, cfqd->cfq_slice[1]);
 USEC_SHOW_FUNCTION(cfq_slice_async_us_show, cfqd->cfq_slice[0]);
 USEC_SHOW_FUNCTION(cfq_target_latency_us_show, cfqd->cfq_target_latency);
@@ -4890,6 +4856,7 @@ STORE_FUNCTION(cfq_back_seek_max_store, &cfqd->cfq_back_max, 0, UINT_MAX, 0);
 STORE_FUNCTION(cfq_back_seek_penalty_store, &cfqd->cfq_back_penalty, 1,
 		UINT_MAX, 0);
 STORE_FUNCTION(cfq_slice_idle_store, &cfqd->cfq_slice_idle, 0, UINT_MAX, 1);
+STORE_FUNCTION(cfq_group_idle_store, &cfqd->cfq_group_idle, 0, UINT_MAX, 1);
 STORE_FUNCTION(cfq_slice_sync_store, &cfqd->cfq_slice[1], 1, UINT_MAX, 1);
 STORE_FUNCTION(cfq_slice_async_store, &cfqd->cfq_slice[0], 1, UINT_MAX, 1);
 STORE_FUNCTION(cfq_slice_async_rq_store, &cfqd->cfq_slice_async_rq, 1,
@@ -4912,6 +4879,7 @@ static ssize_t __FUNC(struct elevator_queue *e, const char *page, size_t count)	
 	return ret;							\
 }
 USEC_STORE_FUNCTION(cfq_slice_idle_us_store, &cfqd->cfq_slice_idle, 0, UINT_MAX);
+USEC_STORE_FUNCTION(cfq_group_idle_us_store, &cfqd->cfq_group_idle, 0, UINT_MAX);
 USEC_STORE_FUNCTION(cfq_slice_sync_us_store, &cfqd->cfq_slice[1], 1, UINT_MAX);
 USEC_STORE_FUNCTION(cfq_slice_async_us_store, &cfqd->cfq_slice[0], 1, UINT_MAX);
 USEC_STORE_FUNCTION(cfq_target_latency_us_store, &cfqd->cfq_target_latency, 1, UINT_MAX);
@@ -4933,6 +4901,8 @@ static struct elv_fs_entry cfq_attrs[] = {
 	CFQ_ATTR(slice_async_rq),
 	CFQ_ATTR(slice_idle),
 	CFQ_ATTR(slice_idle_us),
+	CFQ_ATTR(group_idle),
+	CFQ_ATTR(group_idle_us),
 	CFQ_ATTR(low_latency),
 	CFQ_ATTR(target_latency),
 	CFQ_ATTR(target_latency_us),
