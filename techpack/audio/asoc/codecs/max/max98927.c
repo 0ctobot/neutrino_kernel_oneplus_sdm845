@@ -6,6 +6,10 @@
  * published by the Free Software Foundation.
  */
 
+#if defined(CONFIG_ANDROID) && !defined(CONFIG_DEBUG_FS)
+#define CONFIG_DEBUG_FS
+#endif
+
 #include <linux/delay.h>
 #include <linux/i2c.h>
 #include <linux/module.h>
