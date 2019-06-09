@@ -126,8 +126,9 @@ endif
 $(subdirs):
 	$(Q)$(MAKE) $(hdr-inst)=$(obj)/$@ dst=$(_dst)/$@
 
+targets := $(wildcard $(sort $(targets)))
 cmd_files := $(wildcard \
-             $(foreach f,$(sort $(targets)),$(dir $(f)).$(notdir $(f)).cmd))
+             $(foreach f,$(targets),$(dir $(f)).$(notdir $(f)).cmd))
 
 ifneq ($(cmd_files),)
 	include $(cmd_files)
