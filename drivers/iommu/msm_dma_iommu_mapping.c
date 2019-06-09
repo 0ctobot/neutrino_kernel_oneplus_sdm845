@@ -30,7 +30,6 @@
  */
 struct msm_iommu_map {
 	struct list_head lnode;
-	struct rb_node node;
 	struct device *dev;
 	struct scatterlist sgl;
 	unsigned int nents;
@@ -145,7 +144,10 @@ static void msm_iommu_map_destroy(struct kref *kref)
 	list_del(&map->lnode);
 	write_unlock(&meta->lock);
 
+	mutex_lock(&meta->map_lock);
 	dma_unmap_sg(map->dev, &map->sgl, map->nents, map->dir);
+	mutex_unlock(&meta->map_lock);
+
 	kfree(map);
 }
 
@@ -180,7 +182,7 @@ static int __msm_dma_map_sg(struct device *dev, struct scatterlist *sg,
 	bool extra_meta_ref_taken = false;
 	struct msm_iommu_meta *meta;
 	struct msm_iommu_map *map;
-	int ret = 0;
+	int ret;
 
 	meta = msm_iommu_meta_lookup_get(dma_buf->priv);
 	if (!meta) {
@@ -209,7 +211,6 @@ static int __msm_dma_map_sg(struct device *dev, struct scatterlist *sg,
 			 */
 			if (is_device_dma_coherent(dev))
 				dmb(ish);
-			ret = nents;
 		} else {
 			bool start_diff = sg_phys(sg) != map->buf_start_addr;
 
@@ -221,6 +222,7 @@ static int __msm_dma_map_sg(struct device *dev, struct scatterlist *sg,
 				dir, map->dir, nents, map->nents, attrs,
 				map->map_attrs, start_diff);
 			ret = -EINVAL;
+			goto release_meta;
 		}
 	} else {
 		map = kmalloc(sizeof(*map), GFP_KERNEL);
@@ -253,7 +255,7 @@ static int __msm_dma_map_sg(struct device *dev, struct scatterlist *sg,
 		msm_iommu_add(meta, map);
 	}
 
-	return ret;
+	return nents;
 
 release_meta:
 	if (extra_meta_ref_taken)
