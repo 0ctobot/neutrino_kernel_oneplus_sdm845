@@ -198,8 +198,10 @@ static int _sde_fence_create_fd(void *fence_ctx, uint32_t val)
 		return -ENOMEM;
 
 	sde_fence->ctx = fence_ctx;
+#ifdef CONFIG_DRM_SYNC_DEBUG
 	snprintf(sde_fence->name, SDE_FENCE_NAME_SIZE, "sde_fence:%s:%u",
 						sde_fence->ctx->name, val);
+#endif
 	fence_init(&sde_fence->base, &sde_fence_ops, &ctx->lock,
 		ctx->context, val);
 
@@ -243,7 +245,9 @@ int sde_fence_init(struct sde_fence_context *ctx,
 	}
 	memset(ctx, 0, sizeof(*ctx));
 
+#ifdef CONFIG_DRM_SYNC_DEBUG
 	strlcpy(ctx->name, name, ARRAY_SIZE(ctx->name));
+#endif
 	ctx->drm_id = drm_id;
 	kref_init(&ctx->kref);
 	ctx->context = fence_context_alloc(1);

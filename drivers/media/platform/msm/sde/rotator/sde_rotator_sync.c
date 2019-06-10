@@ -52,8 +52,10 @@ struct sde_rot_fence {
 struct sde_rot_timeline {
 	struct kref kref;
 	spinlock_t lock;
+#ifdef CONFIG_DRM_SYNC_DEBUG
 	char name[SDE_ROT_SYNC_NAME_SIZE];
 	char fence_name[SDE_ROT_SYNC_NAME_SIZE];
+#endif
 	u32 next_value;
 	u32 curr_value;
 	u64 context;
@@ -125,9 +127,13 @@ static const char *sde_rot_fence_get_driver_name(struct fence *fence)
 
 static const char *sde_rot_fence_get_timeline_name(struct fence *fence)
 {
+#ifdef CONFIG_DRM_SYNC_DEBUG
 	struct sde_rot_timeline *tl = to_sde_rot_timeline(fence);
 
 	return tl->name;
+#else
+	return "";
+#endif
 }
 
 static bool sde_rot_fence_enable_signaling(struct fence *fence)
@@ -201,8 +207,10 @@ struct sde_rot_timeline *sde_rotator_create_timeline(const char *name)
 		return NULL;
 
 	kref_init(&tl->kref);
+#ifdef CONFIG_DRM_SYNC_DEBUG
 	snprintf(tl->name, sizeof(tl->name), "rot_timeline_%s", name);
 	snprintf(tl->fence_name, sizeof(tl->fence_name), "rot_fence_%s", name);
+#endif
 	spin_lock_init(&tl->lock);
 	tl->context = fence_context_alloc(1);
 	INIT_LIST_HEAD(&tl->fence_list_head);
@@ -257,7 +265,11 @@ void sde_rotator_resync_timeline(struct sde_rot_timeline *tl)
 	spin_lock_irqsave(&tl->lock, flags);
 	val = tl->next_value - tl->curr_value;
 	if (val > 0) {
+#ifdef CONFIG_DRM_SYNC_DEBUG
 		SDEROT_WARN("flush %s:%d\n", tl->name, val);
+#else
+		SDEROT_WARN("flush: %d\n", val);
+#endif
 		sde_rotator_inc_timeline_locked(tl, val);
 	}
 	spin_unlock_irqrestore(&tl->lock, flags);
@@ -293,7 +305,9 @@ struct sde_rot_sync_fence *sde_rotator_get_sync_fence(
 	list_add_tail(&f->fence_list, &tl->fence_list_head);
 	sde_rotator_get_timeline(tl);
 	spin_unlock_irqrestore(&tl->lock, flags);
+#ifdef CONFIG_DRM_SYNC_DEBUG
 	snprintf(f->name, sizeof(f->name), "%s_%u", tl->fence_name, val);
+#endif
 
 	if (fence_fd)
 		*fence_fd = sde_rotator_get_sync_fence_fd(
