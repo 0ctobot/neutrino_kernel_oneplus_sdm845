@@ -312,18 +312,6 @@ config MAX_BOOST_FREQ_PERF
 	help
 	  Max-boost frequency for the performance CPU cluster.
 
-config FRAME_BOOST_FREQ_LP
-	int "Low-power cluster frame boost freq"
-	default "0"
-	help
-	  Frame boost frequency for the low-power CPU cluster.
-
-config FRAME_BOOST_FREQ_PERF
-	int "Performance cluster frame boost freq"
-	default "0"
-	help
-	  Frame boost frequency for the performance CPU cluster.
-
 config REMOVE_INPUT_BOOST_FREQ_LP
 	int "Low-power cluster return frequency"
 	default "0"
