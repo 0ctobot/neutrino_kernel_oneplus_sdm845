@@ -484,13 +484,15 @@ static char *task_group_path(struct task_group *tg)
 }
 #endif
 
+static const char stat_nam[] = TASK_STATE_TO_CHAR_STR;
+
 static void
 print_task(struct seq_file *m, struct rq *rq, struct task_struct *p)
 {
 	if (rq->curr == p)
-		SEQ_printf(m, "R");
+		SEQ_printf(m, ">R");
 	else
-		SEQ_printf(m, " ");
+		SEQ_printf(m, " %c", task_state_to_char(p));
 
 	SEQ_printf(m, "%15s %5d %9Ld.%06ld %9Ld %5d ",
 		p->comm, task_pid_nr(p),
@@ -519,9 +521,9 @@ static void print_rq(struct seq_file *m, struct rq *rq, int rq_cpu)
 
 	SEQ_printf(m,
 	"\nrunnable tasks:\n"
-	"            task   PID         tree-key  switches  prio"
+	" S           task   PID         tree-key  switches  prio"
 	"     wait-time             sum-exec        sum-sleep\n"
-	"------------------------------------------------------"
+	"-------------------------------------------------------"
 	"----------------------------------------------------\n");
 
 	rcu_read_lock();
