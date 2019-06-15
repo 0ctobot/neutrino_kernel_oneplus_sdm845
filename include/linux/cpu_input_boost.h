@@ -5,28 +5,15 @@
 #ifndef _CPU_INPUT_BOOST_H_
 #define _CPU_INPUT_BOOST_H_
 
-#include <linux/types.h>
-
 #ifdef CONFIG_CPU_INPUT_BOOST
 void cpu_input_boost_kick(void);
 void cpu_input_boost_kick_max(unsigned int duration_ms);
-void cpu_input_boost_kick_frame(unsigned int duration_ms);
-
-bool should_kick_frame_boost(unsigned long timeout_ms);
 #else
 static inline void cpu_input_boost_kick(void)
 {
 }
 static inline void cpu_input_boost_kick_max(unsigned int duration_ms)
 {
-}
-static inline void cpu_input_boost_kick_frame(unsigned int duration_ms)
-{
-}
-
-static inline bool should_kick_frame_boost(unsigned long timeout_ms)
-{
-	return true;
 }
 #endif
 
