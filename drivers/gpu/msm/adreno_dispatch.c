@@ -17,6 +17,7 @@
 #include <linux/jiffies.h>
 #include <linux/err.h>
 #include <linux/version.h>
+
 /* The sched_param struct is located elsewhere in newer kernels */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 #include <uapi/linux/sched/types.h>
@@ -2464,8 +2465,6 @@ static void adreno_dispatcher_work(struct adreno_device *adreno_dev)
 	int count = 0;
 	unsigned int i = 0;
 
-	mutex_lock(&dispatcher->mutex);
-
 	/*
 	 * As long as there are inflight commands, process retired comamnds from
 	 * all drawqueues
@@ -2504,8 +2503,6 @@ static void adreno_dispatcher_work(struct adreno_device *adreno_dev)
 		_dispatcher_update_timers(adreno_dev);
 	else
 		_dispatcher_power_down(adreno_dev);
-
-	mutex_unlock(&dispatcher->mutex);
 }
 
 static int adreno_dispatcher_thread(void *data)
@@ -2523,12 +2520,20 @@ static int adreno_dispatcher_thread(void *data)
 
 		wait_event(dispatcher->cmd_waitq,
 			  (should_stop = kthread_should_stop()) ||
-			   atomic_cmpxchg(&dispatcher->send_cmds, 1, 0));
+			   atomic_cmpxchg(&dispatcher->state, THREAD_REQ,
+					  THREAD_ACTIVE) == THREAD_REQ);
 
 		if (should_stop)
 			break;
 
-		adreno_dispatcher_work(adreno_dev);
+		mutex_lock(&dispatcher->mutex);
+		do {
+			adreno_dispatcher_work(adreno_dev);
+		} while (atomic_cmpxchg(&dispatcher->state, THREAD_REQ,
+					THREAD_ACTIVE) == THREAD_REQ);
+		mutex_unlock(&dispatcher->mutex);
+
+		atomic_cmpxchg(&dispatcher->state, THREAD_ACTIVE, THREAD_IDLE);
 	}
 
 	return 0;
@@ -2539,7 +2544,7 @@ void adreno_dispatcher_schedule(struct kgsl_device *device)
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	struct adreno_dispatcher *dispatcher = &adreno_dev->dispatcher;
 
-	if (!atomic_cmpxchg(&dispatcher->send_cmds, 0, 1))
+	if (atomic_xchg(&dispatcher->state, THREAD_REQ) == THREAD_IDLE)
 		wake_up(&dispatcher->cmd_waitq);
 }
 
@@ -2845,7 +2850,7 @@ int adreno_dispatcher_init(struct adreno_device *adreno_dev)
 	spin_lock_init(&dispatcher->plist_lock);
 
 	init_waitqueue_head(&dispatcher->cmd_waitq);
-	dispatcher->send_cmds = (atomic_t)ATOMIC_INIT(0);
+	dispatcher->state = (atomic_t)ATOMIC_INIT(THREAD_IDLE);
 	dispatcher->thread = kthread_run_perf_critical(adreno_dispatcher_thread,
 						       adreno_dev,
 						       "adreno_dispatch");
