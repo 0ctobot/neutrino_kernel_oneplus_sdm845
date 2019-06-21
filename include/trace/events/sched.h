@@ -1657,11 +1657,11 @@ TRACE_EVENT(sched_find_best_target,
 
 	TP_PROTO(struct task_struct *tsk, bool prefer_idle,
 		unsigned long min_util, int start_cpu,
-		int best_idle, int best_active, int target,
+		int best_idle, int best_active, int most_spare_cap, int target,
 		int backup_cpu),
 
 	TP_ARGS(tsk, prefer_idle, min_util, start_cpu,
-		best_idle, best_active, target, backup_cpu),
+		best_idle, best_active, most_spare_cap, target, backup_cpu),
 
 	TP_STRUCT__entry(
 		__array( char,	comm,	TASK_COMM_LEN	)
@@ -1671,6 +1671,7 @@ TRACE_EVENT(sched_find_best_target,
 		__field( int,	start_cpu		)
 		__field( int,	best_idle		)
 		__field( int,	best_active		)
+		__field( int,	most_spare_cap		)
 		__field( int,	target			)
 		__field( int,	backup_cpu		)
 	),
@@ -1683,15 +1684,17 @@ TRACE_EVENT(sched_find_best_target,
 		__entry->start_cpu 	= start_cpu;
 		__entry->best_idle	= best_idle;
 		__entry->best_active	= best_active;
+		__entry->most_spare_cap	= most_spare_cap;
 		__entry->target		= target;
 		__entry->backup_cpu	= backup_cpu;
 	),
 
 	TP_printk("pid=%d comm=%s prefer_idle=%d start_cpu=%d "
-		  "best_idle=%d best_active=%d target=%d backup=%d",
+		  "best_idle=%d best_active=%d most_spare_cap=%d target=%d backup=%d",
 		__entry->pid, __entry->comm,
 		__entry->prefer_idle, __entry->start_cpu,
 		__entry->best_idle, __entry->best_active,
+		__entry->most_spare_cap,
 		__entry->target,
 		__entry->backup_cpu)
 );
