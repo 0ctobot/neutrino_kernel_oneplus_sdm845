@@ -82,7 +82,7 @@ struct adreno_dispatcher_drawqueue {
  * for every RB that is scheduled to run on the device
  * @thread: Kthread for the command dispatcher
  * @cmd_waitq: Waitqueue for the command dispatcher
- * @send_cmds: Atomic boolean indicating that commands should be dispatched
+ * @state: Atomic tristate to control the dispatcher thread
  */
 struct adreno_dispatcher {
 	struct mutex mutex;
@@ -98,7 +98,13 @@ struct adreno_dispatcher {
 	unsigned int disp_preempt_fair_sched;
 	struct task_struct *thread;
 	wait_queue_head_t cmd_waitq;
-	atomic_t send_cmds;
+	atomic_t state;
+};
+
+enum adreno_dispatcher_thread_state {
+	THREAD_IDLE,
+	THREAD_REQ,
+	THREAD_ACTIVE
 };
 
 enum adreno_dispatcher_flags {
