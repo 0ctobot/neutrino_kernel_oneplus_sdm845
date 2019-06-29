@@ -6266,7 +6266,7 @@ const struct net_device_ops net_ops_struct = {
 	.ndo_set_mac_address = hdd_hostapd_set_mac_address,
 	.ndo_do_ioctl = hdd_ioctl,
 	.ndo_change_mtu = hdd_hostapd_change_mtu,
-	.ndo_select_queue = hdd_hostapd_select_queue,
+	.ndo_select_queue = hdd_select_queue,
 };
 
 void hdd_set_ap_ops(struct net_device *dev)
@@ -7826,7 +7826,7 @@ int wlan_hdd_cfg80211_start_bss(struct hdd_adapter *adapter,
 
 	hdd_enter();
 
-	hdd_notify_teardown_tdls_links(adapter->vdev);
+	hdd_notify_teardown_tdls_links(hdd_ctx->psoc);
 
 	if (policy_mgr_is_hw_mode_change_in_progress(hdd_ctx->psoc)) {
 		status = policy_mgr_wait_for_connection_update(
