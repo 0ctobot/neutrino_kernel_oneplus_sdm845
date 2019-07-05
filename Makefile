@@ -724,30 +724,6 @@ DISABLE_LTO	+= $(DISABLE_CFI)
 export DISABLE_CFI
 endif
 
-ifdef CONFIG_SAFESTACK
-safestack-flags	+= -fsanitize=safe-stack
-safestack-extra-flags += -mllvm -safestack-use-pointer-address
-
-ifdef CONFIG_SAFESTACK_COLORING
-safestack-extra-flags += -mllvm -safe-stack-coloring=1
-endif
-
-ifdef CONFIG_LTO_CLANG
-# if we use LLVMgold, pass extra flags to ld.gold
-LDFLAGS		+= -plugin-opt=-safestack-use-pointer-address
-
-ifdef CONFIG_SAFESTACK_COLORING
-LDFLAGS		+= -plugin-opt=-safe-stack-coloring=1
-endif
-endif
-
-# safestack-flags are re-tested in prepare-compiler-check
-KBUILD_CFLAGS	+= $(call cc-option, $(safestack-flags))
-KBUILD_CFLAGS	+= $(call cc-option, $(safestack-extra-flags))
-DISABLE_SAFESTACK := -fno-sanitize=safe-stack
-export DISABLE_SAFESTACK
-endif
-
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS	+= -Os $(call cc-disable-warning,maybe-uninitialized,)
 else
@@ -1236,12 +1212,6 @@ endif
 ifdef cfi-flags
   ifeq ($(call cc-option, $(cfi-flags)),)
 	@echo Cannot use CONFIG_CFI: $(cfi-flags) not supported by compiler >&2 && exit 1
-  endif
-endif
-ifdef safestack-flags
-  ifeq ($(call cc-option, $(safestack-flags)),)
-	@echo Cannot use CONFIG_SAFESTACK: $(safestack-flags) not supported by \
-		compiler >&2 && exit 1
   endif
 endif
 	@:
