@@ -499,7 +499,7 @@ static ssize_t up_rate_limit_us_store(struct gov_attr_set *attr_set,
 	struct sugov_policy *sg_policy;
 	unsigned int rate_limit_us;
 
-	if (!strcmp(current->comm, "init"))
+	if (!memcmp(current->comm, "init", sizeof("init")))
 		return count;
 
 	if (kstrtouint(buf, 10, &rate_limit_us))
@@ -522,7 +522,7 @@ static ssize_t down_rate_limit_us_store(struct gov_attr_set *attr_set,
 	struct sugov_policy *sg_policy;
 	unsigned int rate_limit_us;
 
-	if (!strcmp(current->comm, "init"))
+	if (!memcmp(current->comm, "init", sizeof("init")))
 		return count;
 
 	if (kstrtouint(buf, 10, &rate_limit_us))
@@ -569,7 +569,7 @@ static ssize_t iowait_boost_enable_store(struct gov_attr_set *attr_set,
 	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
 	bool enable;
 
-	if (!strcmp(current->comm, "init"))
+	if (!memcmp(current->comm, "init", sizeof("init")))
 		return count;
 
 	if (kstrtobool(buf, &enable))
