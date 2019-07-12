@@ -1369,7 +1369,7 @@ static int inode_doinit_with_dentry(struct inode *inode, struct dentry *opt_dent
 	struct inode_security_struct *isec = inode->i_security;
 	u32 sid;
 	struct dentry *dentry;
-	char context_onstack[SZ_1K];
+	char context_onstack[SZ_4K] __aligned(8);
 	char *context = NULL;
 	unsigned len = 0;
 	int rc = 0;
@@ -1423,10 +1423,10 @@ static int inode_doinit_with_dentry(struct inode *inode, struct dentry *opt_dent
 			goto out_unlock;
 		}
 
-		context_onstack[sizeof(context_onstack) - 1] = '\0';
+		context_onstack[ARRAY_SIZE(context_onstack) - 1] = '\0';
 		rc = __vfs_getxattr(dentry, inode, XATTR_NAME_SELINUX,
-							context_onstack,
-							sizeof(context_onstack));
+					   context_onstack,
+					   ARRAY_SIZE(context_onstack));
 		if (rc == -ERANGE) {
 			/* Need a larger buffer.  Query for the right size. */
 			rc = __vfs_getxattr(dentry, inode, XATTR_NAME_SELINUX, NULL, 0);
@@ -1442,8 +1442,7 @@ static int inode_doinit_with_dentry(struct inode *inode, struct dentry *opt_dent
 				goto out_unlock;
 			}
 			context[len] = '\0';
-			rc = __vfs_getxattr(dentry, inode, XATTR_NAME_SELINUX,
-								context, len);
+			rc = __vfs_getxattr(dentry, inode, XATTR_NAME_SELINUX, context, len);
 		} else {
 			context = context_onstack;
 		}
