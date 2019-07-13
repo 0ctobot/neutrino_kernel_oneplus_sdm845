@@ -3540,7 +3540,6 @@ static int cgroup_cpu_pressure_show(struct seq_file *seq, void *v)
 static ssize_t cgroup_pressure_write(struct kernfs_open_file *of, char *buf,
 					  size_t nbytes, enum psi_res res)
 {
-	struct psi_trigger *old;
 	struct psi_trigger *new;
 	struct cgroup *cgrp;
 
@@ -3557,12 +3556,7 @@ static ssize_t cgroup_pressure_write(struct kernfs_open_file *of, char *buf,
 		return PTR_ERR(new);
 	}
 
-	old = of->priv;
-	rcu_assign_pointer(of->priv, new);
-	if (old) {
-		synchronize_rcu();
-		psi_trigger_destroy(old);
-	}
+	psi_trigger_replace(&of->priv, new);
 
 	cgroup_put(cgrp);
 
@@ -3591,32 +3585,14 @@ static ssize_t cgroup_cpu_pressure_write(struct kernfs_open_file *of,
 }
 
 static unsigned int cgroup_pressure_poll(struct kernfs_open_file *of,
-					  poll_table *pt)
+					 poll_table *pt)
 {
-	struct psi_trigger *t;
-	unsigned int ret;
-
-	rcu_read_lock();
-	t = rcu_dereference(of->priv);
-	if (t)
-		ret = psi_trigger_poll(t, of->file, pt);
-	else
-		ret = DEFAULT_POLLMASK | POLLERR | POLLPRI;
-	rcu_read_unlock();
-
-	return ret;
+	return psi_trigger_poll(&of->priv, of->file, pt);
 }
 
 static void cgroup_pressure_release(struct kernfs_open_file *of)
 {
-	struct psi_trigger *t = of->priv;
-
-	if (!t)
-		return;
-
-	rcu_assign_pointer(of->priv, NULL);
-	synchronize_rcu();
-	psi_trigger_destroy(t);
+	psi_trigger_replace(&of->priv, NULL);
 }
 #endif /* CONFIG_PSI */
 
