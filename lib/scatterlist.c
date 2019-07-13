@@ -163,13 +163,12 @@ EXPORT_SYMBOL(sg_init_one);
  */
 static struct scatterlist *sg_kmalloc(unsigned int nents, gfp_t gfp_mask)
 {
-	return __vmalloc(nents * sizeof(struct scatterlist),
-			 gfp_mask | __GFP_HIGHMEM, PAGE_KERNEL);
+	return kmalloc(nents * sizeof(struct scatterlist), gfp_mask);
 }
 
 static void sg_kfree(struct scatterlist *sg, unsigned int nents)
 {
-	vfree(sg);
+	kfree(sg);
 }
 
 /**
