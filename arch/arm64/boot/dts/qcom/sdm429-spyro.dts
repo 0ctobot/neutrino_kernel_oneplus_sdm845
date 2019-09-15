@@ -13,8 +13,7 @@
 
 /dts-v1/;
 
-#include "sdm429.dtsi"
-#include "sdm429-qrd-spyro-evt.dtsi"
+#include "sdm429-spyro.dtsi"
 
 / {
 	model = "Qualcomm Technologies, Inc. SDM429 QRD Spyro";

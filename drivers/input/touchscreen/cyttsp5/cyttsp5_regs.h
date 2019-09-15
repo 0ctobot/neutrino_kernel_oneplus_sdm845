@@ -68,6 +68,7 @@
 
 
 /* #define EASYWAKE_TSG6 */
+#define CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP5_BINARY_FW_UPGRADE
 
 #define CY_FW_FILE_PREFIX            "cyttsp5_fw"
 #define CY_FW_FILE_SUFFIX            ".bin"
@@ -990,6 +991,7 @@ struct cyttsp5_core_data {
 	struct notifier_block pm_notifier;
 #endif
 	struct work_struct startup_work;
+	struct work_struct resume_work;
 	struct cyttsp5_sysinfo sysinfo;
 	void *exclusive_dev;
 	int exclusive_waits;
@@ -1026,6 +1028,7 @@ struct cyttsp5_core_data {
 	u8 debug_level;
 	u32 watchdog_interval;
 	u8 show_timestamp;
+	int forbit_bigobject;
 
 };
 struct gd_sensor {
