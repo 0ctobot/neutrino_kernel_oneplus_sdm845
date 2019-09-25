@@ -682,19 +682,19 @@ int __init init_project_info(void)
 	push_component_info(RF_VERSION, rf_version, mainboard_manufacture);
 
 	get_ddr_manufacture_name();
-	if (totalram_pages > 9*(1<<18))
+	if (totalram_pages() > 9*(1<<18))
 		ddr_size = 10;
-	else if (totalram_pages > 6*(1<<18))
+	else if (totalram_pages() > 6*(1<<18))
 		ddr_size = 8;
-	else if (totalram_pages > 5*(1<<18))
+	else if (totalram_pages() > 5*(1<<18))
 		ddr_size = 6;
-	else if (totalram_pages > 4*(1<<18))
+	else if (totalram_pages() > 4*(1<<18))
 		ddr_size = 5;
-	else if (totalram_pages > 3*(1<<18))
+	else if (totalram_pages() > 3*(1<<18))
 		ddr_size = 4;
-	else if (totalram_pages > 2*(1<<18))
+	else if (totalram_pages() > 2*(1<<18))
 		ddr_size = 3;
-	else if (totalram_pages > 1*(1<<18))
+	else if (totalram_pages() > 1*(1<<18))
 		ddr_size = 2;
 
     snprintf(ddr_version, sizeof(ddr_version), "size_%dG_r_%d_c_%d",
