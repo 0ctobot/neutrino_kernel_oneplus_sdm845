@@ -8,6 +8,9 @@ typedef     __u8        uint8;
 #define SECURE_BOOT1			(SECURE_BOOT_BASE + 0x4*1)
 #define BUF_SIZE		64
 
+#define SMEM_DUMP_INFO 135
+#define SMEM_PROJECT_INFO 136
+
 #include <linux/string.h>
 #include <linux/kallsyms.h>
 //extern uint32_t chip_serial_num;
