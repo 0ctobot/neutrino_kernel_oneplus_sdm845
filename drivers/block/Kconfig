@@ -244,7 +244,7 @@ config BLK_DEV_LOOP
 config BLK_DEV_LOOP_MIN_COUNT
 	int "Number of loop devices to pre-create at init time"
 	depends on BLK_DEV_LOOP
-	default 8
+	default 1
 	help
 	  Static number of loop devices to be unconditionally pre-created
 	  at init time.
